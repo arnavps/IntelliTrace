@@ -23,6 +23,18 @@ from intellitrace.security import (
     validate_mobile,
 )
 from intellitrace.guard import IngestionDeduplicationGuard
+try:
+    from intellitrace.streaming import (
+        TransactionTimestampAssigner,
+        IngestionProcessFunction,
+        create_flink_pipeline,
+    )
+    _has_streaming = True
+except ImportError:
+    TransactionTimestampAssigner = None
+    IngestionProcessFunction = None
+    create_flink_pipeline = None
+    _has_streaming = False
 
 __all__ = [
     "IUTSException",
@@ -40,4 +52,7 @@ __all__ = [
     "validate_passport",
     "validate_mobile",
     "IngestionDeduplicationGuard",
+    "TransactionTimestampAssigner",
+    "IngestionProcessFunction",
+    "create_flink_pipeline",
 ]
