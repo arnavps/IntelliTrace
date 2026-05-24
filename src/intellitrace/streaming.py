@@ -30,7 +30,7 @@ from pyflink.datastream.connectors.kafka import (
     DeliveryGuarantee,
 )
 from pyflink.datastream.state_backend import EmbeddedRocksDBStateBackend
-from pyflink.datastream.functions import KeyedProcessFunction
+from pyflink.datastream.functions import KeyedProcessFunction, FlatMapFunction
 from pyflink.datastream.state import StateTtlConfig, ValueStateDescriptor
 
 
@@ -302,6 +302,250 @@ class SmurfingPatternDetector(KeyedProcessFunction):
             yield json.dumps(alert)
 
 
+class LayeringEventDuplicator(FlatMapFunction):
+    """
+    Graph-streaming vector duplicator. Emits each ledger transaction twice:
+    once as an INCOMING credit to the credit account, and once as an OUTGOING
+    debit from the debit account, enabling unified single-account view.
+    """
+    def flat_map(self, value: str) -> Generator[str, None, None]:
+        try:
+            data = json.loads(value)
+        except Exception:
+            return
+            
+        credit_account = data.get("credit_account_id")
+        debit_account = data.get("debit_account_id")
+        amount = float(data.get("amount_inr", 0.0))
+        txn_timestamp = data.get("txn_timestamp")
+        txn_id = data.get("txn_id")
+        channel = data.get("channel")
+        lineage = data.get("lineage", {"origin_txn_id": txn_id, "hop_count": 0})
+        
+        # 1. Emit as INCOMING Credit
+        if credit_account:
+            yield json.dumps({
+                "account_id": credit_account,
+                "direction": "INCOMING",
+                "counterparty_id": debit_account,
+                "amount_inr": amount,
+                "txn_timestamp": txn_timestamp,
+                "txn_id": txn_id,
+                "channel": channel,
+                "lineage": lineage
+            })
+            
+        # 2. Emit as OUTGOING Debit
+        if debit_account:
+            yield json.dumps({
+                "account_id": debit_account,
+                "direction": "OUTGOING",
+                "counterparty_id": credit_account,
+                "amount_inr": amount,
+                "txn_timestamp": txn_timestamp,
+                "txn_id": txn_id,
+                "channel": channel,
+                "lineage": lineage
+            })
+
+
+class RapidLayeringAnalyzer(KeyedProcessFunction):
+    """
+    Stateful Flink tumble-window module tracing rapid multi-hop asset layering.
+    Matches accounts receiving >= 500,000 INR and transferring out >90% of it
+    to >= 5 distinct counterparty accounts within a 15-minute tumbling window.
+    """
+    
+    def __init__(self, alert_tag: OutputTag):
+        self.alert_tag = alert_tag
+        self.active_window_state = None
+        self.credits_state = None
+        self.debits_state = None
+
+    def open(self, runtime_context):
+        # Configure State TTL cleanup (2 hours persistence to cover the tumbling duration safely)
+        window_ttl = StateTtlConfig.new_builder(Time.hours(2)) \
+            .set_update_type(StateTtlConfig.UpdateType.OnCreateAndWrite) \
+            .set_state_visibility(StateTtlConfig.StateVisibility.NeverReturnExpired) \
+            .cleanup_in_rocksdb_compact_filter() \
+            .build()
+            
+        # Value state for active window start (epoch ms)
+        window_desc = ValueStateDescriptor("layering_active_window", Types.LONG())
+        window_desc.enable_time_to_live(window_ttl)
+        self.active_window_state = runtime_context.get_state(window_desc)
+        
+        # Value state for incoming credits list (JSON serialized)
+        credits_desc = ValueStateDescriptor("layering_credits", Types.STRING())
+        credits_desc.enable_time_to_live(window_ttl)
+        self.credits_state = runtime_context.get_state(credits_desc)
+        
+        # Value state for outgoing debits list (JSON serialized)
+        debits_desc = ValueStateDescriptor("layering_debits", Types.STRING())
+        debits_desc.enable_time_to_live(window_ttl)
+        self.debits_state = runtime_context.get_state(debits_desc)
+
+    def process_element(self, value: str, ctx: KeyedProcessFunction.Context) -> Generator[str, None, None]:
+        try:
+            event = json.loads(value)
+        except Exception:
+            return
+
+        account_id = event.get("account_id")
+        direction = event.get("direction")
+        amount = float(event.get("amount_inr", 0.0))
+        txn_timestamp = event.get("txn_timestamp")
+        txn_id = event.get("txn_id")
+        
+        try:
+            dt = datetime.fromisoformat(txn_timestamp.replace("Z", "+00:00"))
+            event_time_ms = int(dt.timestamp() * 1000)
+        except Exception:
+            return
+
+        # 15 minutes in ms = 900000
+        window_start = (event_time_ms // 900000) * 900000
+        window_end = window_start + 900000
+
+        # Load active window start
+        active_start = self.active_window_state.value()
+
+        if active_start is None:
+            # First event for this window start -> Initialize states
+            self.active_window_state.update(window_start)
+            self.credits_state.update(json.dumps([]))
+            self.debits_state.update(json.dumps([]))
+            # Register tumbling window end timer
+            ctx.timer_service().register_event_time_timer(window_end)
+            active_start = window_start
+
+        # Load appropriate state lists
+        if direction == "INCOMING":
+            state_str = self.credits_state.value()
+            credits = json.loads(state_str) if state_str else []
+            credits.append(event)
+            self.credits_state.update(json.dumps(credits))
+        elif direction == "OUTGOING":
+            state_str = self.debits_state.value()
+            debits = json.loads(state_str) if state_str else []
+            debits.append(event)
+            self.debits_state.update(json.dumps(debits))
+
+    def on_timer(self, timestamp: int, ctx: KeyedProcessFunction.OnTimerContext) -> Generator[str, None, None]:
+        # Timer fires at window_end. Evaluate tumbling window results!
+        window_end = timestamp
+        window_start = window_end - 900000
+
+        active_start = self.active_window_state.value()
+        if active_start is None or active_start != window_start:
+            # No data or already cleaned up
+            return
+
+        credits_str = self.credits_state.value()
+        debits_str = self.debits_state.value()
+        
+        credits = json.loads(credits_str) if credits_str else []
+        debits = json.loads(debits_str) if debits_str else []
+
+        if not credits or not debits:
+            # No credits or no debits -> Clear state and return
+            self.active_window_state.clear()
+            self.credits_state.clear()
+            self.debits_state.clear()
+            return
+
+        # Calculate metrics
+        total_incoming = sum(float(c["amount_inr"]) for c in credits)
+        total_outgoing = sum(float(d["amount_inr"]) for d in debits)
+        distinct_recipients = set(d["counterparty_id"] for d in debits)
+        distinct_recipients_count = len(distinct_recipients)
+
+        # Layering Chaining criteria check:
+        # 1. Incoming credit >= 500,000 INR
+        # 2. Outgoing debit > 90% of incoming
+        # 3. Fan-out to 5 or more distinct counterparty accounts
+        is_layering = (
+            total_incoming >= 500000.0 and
+            total_outgoing >= 0.90 * total_incoming and
+            distinct_recipients_count >= 5
+        )
+
+        if is_layering:
+            import uuid
+            
+            # Trace lineage hop counts
+            incoming_hops = []
+            for c in credits:
+                lineage = c.get("lineage", {})
+                hop = lineage.get("hop_count", 0)
+                incoming_hops.append(hop)
+            
+            # Outgoing hop is max incoming hop + 1
+            max_incoming_hop = max(incoming_hops) if incoming_hops else 0
+            outgoing_hop = max_incoming_hop + 1
+            
+            # Timestamp differences (millisecond resolution)
+            first_credit_time = min(
+                int(datetime.fromisoformat(c["txn_timestamp"].replace("Z", "+00:00")).timestamp() * 1000)
+                for c in credits
+            )
+            last_debit_time = max(
+                int(datetime.fromisoformat(d["txn_timestamp"].replace("Z", "+00:00")).timestamp() * 1000)
+                for d in debits
+            )
+            elapsed_time_ms = last_debit_time - first_credit_time
+
+            # Stamp debits with lineage tags
+            stamped_debits = []
+            for idx, d in enumerate(debits):
+                stamped_debits.append({
+                    "txn_id": d["txn_id"],
+                    "counterparty_id": d["counterparty_id"],
+                    "amount_inr": d["amount_inr"],
+                    "txn_timestamp": d["txn_timestamp"],
+                    "channel": d["channel"],
+                    "sequence_in_chain": idx + 1,
+                    "hop_count_from_origin": outgoing_hop
+                })
+
+            # Structured alert payload
+            alert_payload = {
+                "alert_id": str(uuid.uuid4()),
+                "alert_type": "RAPID_LAYERING_CHAIN_DETECTED",
+                "severity": "CRITICAL",
+                "monitored_account_id": ctx.get_current_key(),
+                "tumbling_window_start": datetime.fromtimestamp(window_start / 1000, timezone.utc).isoformat(),
+                "tumbling_window_end": datetime.fromtimestamp(window_end / 1000, timezone.utc).isoformat(),
+                "total_incoming_credits_inr": round(total_incoming, 2),
+                "total_outgoing_debits_inr": round(total_outgoing, 2),
+                "transfer_out_ratio": round(total_outgoing / total_incoming, 4),
+                "distinct_counterparties_fanout": distinct_recipients_count,
+                "elapsed_time_ms": elapsed_time_ms,
+                "incoming_credits": [
+                    {
+                        "txn_id": c["txn_id"],
+                        "counterparty_id": c["counterparty_id"],
+                        "amount_inr": c["amount_inr"],
+                        "txn_timestamp": c["txn_timestamp"],
+                        "channel": c["channel"]
+                    } for c in credits
+                ],
+                "outgoing_layering_hops": stamped_debits,
+                "triggered_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            # Emit alert to downstream tag
+            ctx.output(self.alert_tag, json.dumps(alert_payload))
+            
+            # Emit alert to primary stream
+            yield json.dumps(alert_payload)
+
+        # Tumbling window completed -> Clear state
+        self.active_window_state.clear()
+        self.credits_state.clear()
+        self.debits_state.clear()
+
+
 def create_flink_pipeline(
     bootstrap_servers: str = "kafka-bootstrap.internal:9092",
     source_topic: str = "intellitrace.txns.raw",
@@ -417,6 +661,31 @@ def create_flink_pipeline(
     alert_side_stream = alert_stream.get_side_output(alert_tag)
 
     # ------------------------------------------------------------------
+    # 5.6. Tumbling Window Stateful Processing for Suspicious Rapid Layering
+    # ------------------------------------------------------------------
+    # Duplicate standard transactions into incoming credit and outgoing debit events
+    duplicated_stream = main_processed_stream.flat_map(
+        LayeringEventDuplicator(),
+        output_type=Types.STRING()
+    )
+    
+    # Key strictly by single account_id to track both credits and debits together
+    layering_keyed_stream = duplicated_stream.key_by(
+        lambda element: json.loads(element).get("account_id", ""),
+        key_type=Types.STRING()
+    )
+    
+    # Apply RapidLayeringAnalyzer stateful tumbling-window logic
+    layering_alert_tag = OutputTag("intellitrace-layering-alerts", Types.STRING())
+    layering_stream = layering_keyed_stream.process(
+        RapidLayeringAnalyzer(layering_alert_tag),
+        output_type=Types.STRING()
+    )
+    
+    # Extract layering alerts side-output
+    layering_alert_side_stream = layering_stream.get_side_output(layering_alert_tag)
+
+    # ------------------------------------------------------------------
     # 6. Primary, Secondary and Fraud Alert Kafka Event Sinks (RF 3)
     # ------------------------------------------------------------------
     # Primary Enriched Topic Sink
@@ -455,10 +724,13 @@ def create_flink_pipeline(
         .set_delivery_guarantee(DeliveryGuarantee.AT_LEAST_ONCE) \
         .build()
 
+    # Union all alert streams together to sink to a single alerts Kafka topic
+    unified_alerts_stream = alert_side_stream.union(layering_alert_side_stream)
+
     # Bind Sinks to Flink Streams
     main_processed_stream.sink_to(enriched_sink).name("Kafka-Enriched-Sink")
     dlq_stream.sink_to(dlq_sink).name("Kafka-DLQ-Sink")
-    alert_side_stream.sink_to(alert_sink).name("Kafka-Alerts-Sink")
+    unified_alerts_stream.sink_to(alert_sink).name("Kafka-Alerts-Sink")
 
     return env
 

@@ -33,6 +33,8 @@ class MockTimestampAssigner:
 class MockKeyedProcessFunction:
     class Context:
         pass
+    class OnTimerContext:
+        pass
 
 class MockSimpleStringSchema:
     pass
@@ -53,10 +55,16 @@ class MockEmbeddedRocksDBStateBackend:
     def __init__(self, *args, **kwargs):
         pass
 
+class MockFlatMapFunction:
+    pass
+
 class MockTime:
     @classmethod
     def minutes(cls, mins):
         return mins
+    @classmethod
+    def hours(cls, hrs):
+        return hrs
     @classmethod
     def days(cls, ds):
         return ds
@@ -98,6 +106,7 @@ mock_pyflink.Types = MockTypes
 mock_pyflink.OutputTag = MockOutputTag
 mock_pyflink.TimestampAssigner = MockTimestampAssigner
 mock_pyflink.KeyedProcessFunction = MockKeyedProcessFunction
+mock_pyflink.FlatMapFunction = MockFlatMapFunction
 mock_pyflink.SimpleStringSchema = MockSimpleStringSchema
 mock_pyflink.StreamExecutionEnvironment = MockStreamExecutionEnvironment
 mock_pyflink.EmbeddedRocksDBStateBackend = MockEmbeddedRocksDBStateBackend
@@ -123,6 +132,8 @@ from intellitrace.streaming import (
     create_flink_pipeline,
     SmurfingPatternDetector,
     SmurfingPatternSelectFunction,
+    LayeringEventDuplicator,
+    RapidLayeringAnalyzer,
 )
 from pyflink.datastream import OutputTag
 from pyflink.common import Types, CheckpointingMode
@@ -402,6 +413,140 @@ class TestSmurfingPatternDetector(unittest.TestCase):
         
         # Verify risk score state updated by +90 points
         self.mock_risk_state.update.assert_called_once_with(190)
+
+
+class TestRapidLayeringAnalyzer(unittest.TestCase):
+    """Functional and graph-flow tests validating Flink rapid layering detection."""
+
+    def setUp(self):
+        self.alert_tag = OutputTag("intellitrace-layering-alerts", Types.STRING())
+        self.analyzer = RapidLayeringAnalyzer(self.alert_tag)
+        
+        # Setup mock states
+        self.mock_active_window_state = MagicMock()
+        self.mock_active_window_state.value.return_value = None
+        
+        self.mock_credits_state = MagicMock()
+        self.mock_credits_state.value.return_value = None
+        
+        self.mock_debits_state = MagicMock()
+        self.mock_debits_state.value.return_value = None
+        
+        # Inject mock states
+        self.analyzer.active_window_state = self.mock_active_window_state
+        self.analyzer.credits_state = self.mock_credits_state
+        self.analyzer.debits_state = self.mock_debits_state
+        
+        # Setup mock context
+        self.mock_context = MagicMock()
+
+    def test_layering_event_duplicator(self):
+        """Verify that a single transaction is dual-routed to credit and debit views."""
+        duplicator = LayeringEventDuplicator()
+        txn = json.dumps({
+            "txn_id": "T101",
+            "txn_timestamp": "2026-05-24T20:00:00Z",
+            "credit_account_id": "CREDIT-ACC",
+            "debit_account_id": "DEBIT-ACC",
+            "amount_inr": "15000.00",
+            "channel": "UPI"
+        })
+        
+        events = list(duplicator.flat_map(txn))
+        self.assertEqual(len(events), 2)
+        
+        incoming = json.loads(events[0])
+        self.assertEqual(incoming["account_id"], "CREDIT-ACC")
+        self.assertEqual(incoming["direction"], "INCOMING")
+        self.assertEqual(incoming["counterparty_id"], "DEBIT-ACC")
+        
+        outgoing = json.loads(events[1])
+        self.assertEqual(outgoing["account_id"], "DEBIT-ACC")
+        self.assertEqual(outgoing["direction"], "OUTGOING")
+        self.assertEqual(outgoing["counterparty_id"], "CREDIT-ACC")
+
+    def test_rapid_layering_analyzer_no_match(self):
+        """Verify that non-layering windows (e.g. low sum or low distinct recipients) do not trigger alerts."""
+        # 15 minutes window epoch = May 24, 2026 20:00:00 - 20:15:00
+        window_start = 1779652800000
+        window_end = window_start + 900000
+        
+        self.mock_active_window_state.value.return_value = window_start
+        
+        # Scenario: Incoming 600,000 INR credit, but only 3 outgoing distinct counterparties clearing 400,000 INR (low sum and low fan-out)
+        credits = [
+            {"account_id": "MONITORED", "direction": "INCOMING", "counterparty_id": "SRC1", "amount_inr": 600000.0, "txn_timestamp": "2026-05-24T20:01:00Z", "txn_id": "C1", "channel": "UPI"}
+        ]
+        debits = [
+            {"account_id": "MONITORED", "direction": "OUTGOING", "counterparty_id": "DST1", "amount_inr": 150000.0, "txn_timestamp": "2026-05-24T20:05:00Z", "txn_id": "D1", "channel": "NEFT"},
+            {"account_id": "MONITORED", "direction": "OUTGOING", "counterparty_id": "DST2", "amount_inr": 150000.0, "txn_timestamp": "2026-05-24T20:06:00Z", "txn_id": "D2", "channel": "NEFT"},
+            {"account_id": "MONITORED", "direction": "OUTGOING", "counterparty_id": "DST3", "amount_inr": 100000.0, "txn_timestamp": "2026-05-24T20:07:00Z", "txn_id": "D3", "channel": "IMPS"},
+        ]
+        
+        self.mock_credits_state.value.return_value = json.dumps(credits)
+        self.mock_debits_state.value.return_value = json.dumps(debits)
+        
+        mock_timer_ctx = MagicMock()
+        mock_timer_ctx.get_current_key.return_value = "MONITORED"
+        
+        results = list(self.analyzer.on_timer(window_end, mock_timer_ctx))
+        self.assertEqual(len(results), 0)
+        mock_timer_ctx.output.assert_not_called()
+
+    def test_rapid_layering_analyzer_successful_match(self):
+        """Verify successful capture of rapid asset layering with correct stamps and millisecond intervals."""
+        window_start = 1779652800000
+        window_end = window_start + 900000
+        
+        self.mock_active_window_state.value.return_value = window_start
+        
+        # Scenario: Incoming 550,000 INR total credit
+        credits = [
+            {"account_id": "MONITORED", "direction": "INCOMING", "counterparty_id": "SRC1", "amount_inr": 300000.0, "txn_timestamp": "2026-05-24T20:01:00Z", "txn_id": "C1", "channel": "UPI", "lineage": {"origin_txn_id": "O1", "hop_count": 2}},
+            {"account_id": "MONITORED", "direction": "INCOMING", "counterparty_id": "SRC2", "amount_inr": 250000.0, "txn_timestamp": "2026-05-24T20:02:00Z", "txn_id": "C2", "channel": "UPI", "lineage": {"origin_txn_id": "O2", "hop_count": 1}}
+        ]
+        # Scenario: Outgoing 510,000 INR total debit (510k is > 90% of 550k) split across 5 distinct recipients
+        debits = [
+            {"account_id": "MONITORED", "direction": "OUTGOING", "counterparty_id": "DST1", "amount_inr": 100000.0, "txn_timestamp": "2026-05-24T20:05:00Z", "txn_id": "D1", "channel": "NEFT"},
+            {"account_id": "MONITORED", "direction": "OUTGOING", "counterparty_id": "DST2", "amount_inr": 100000.0, "txn_timestamp": "2026-05-24T20:06:00Z", "txn_id": "D2", "channel": "NEFT"},
+            {"account_id": "MONITORED", "direction": "OUTGOING", "counterparty_id": "DST3", "amount_inr": 100000.0, "txn_timestamp": "2026-05-24T20:07:00Z", "txn_id": "D3", "channel": "IMPS"},
+            {"account_id": "MONITORED", "direction": "OUTGOING", "counterparty_id": "DST4", "amount_inr": 100000.0, "txn_timestamp": "2026-05-24T20:08:00Z", "txn_id": "D4", "channel": "IMPS"},
+            {"account_id": "MONITORED", "direction": "OUTGOING", "counterparty_id": "DST5", "amount_inr": 110000.0, "txn_timestamp": "2026-05-24T20:10:00Z", "txn_id": "D5", "channel": "RTGS"},
+        ]
+        
+        self.mock_credits_state.value.return_value = json.dumps(credits)
+        self.mock_debits_state.value.return_value = json.dumps(debits)
+        
+        mock_timer_ctx = MagicMock()
+        mock_timer_ctx.get_current_key.return_value = "MONITORED"
+        
+        results = list(self.analyzer.on_timer(window_end, mock_timer_ctx))
+        self.assertEqual(len(results), 1)
+        
+        # Verify side output generated
+        mock_timer_ctx.output.assert_called_once()
+        call_args = mock_timer_ctx.output.call_args[0]
+        self.assertEqual(call_args[0], self.alert_tag)
+        
+        alert_payload = json.loads(call_args[1])
+        self.assertEqual(alert_payload["alert_type"], "RAPID_LAYERING_CHAIN_DETECTED")
+        self.assertEqual(alert_payload["severity"], "CRITICAL")
+        self.assertEqual(alert_payload["monitored_account_id"], "MONITORED")
+        self.assertEqual(alert_payload["total_incoming_credits_inr"], 550000.0)
+        self.assertEqual(alert_payload["total_outgoing_debits_inr"], 510000.0)
+        self.assertAlmostEqual(alert_payload["transfer_out_ratio"], 0.9273, places=4)
+        self.assertEqual(alert_payload["distinct_counterparties_fanout"], 5)
+        
+        # Incoming hop count lineage check (incoming has max hop count = 2, so outgoing hop is 3)
+        # Verify debits are stamped with sequence_in_chain and hop_count_from_origin
+        stamped_debits = alert_payload["outgoing_layering_hops"]
+        self.assertEqual(len(stamped_debits), 5)
+        for idx, d in enumerate(stamped_debits):
+            self.assertEqual(d["sequence_in_chain"], idx + 1)
+            self.assertEqual(d["hop_count_from_origin"], 3)
+            
+        # Verify elapsed time calculated (first credit is 20:01:00, last debit is 20:10:00 -> diff = 9 minutes = 540,000 ms)
+        self.assertEqual(alert_payload["elapsed_time_ms"], 540000)
 
 
 if __name__ == "__main__":

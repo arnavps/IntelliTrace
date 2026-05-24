@@ -30,6 +30,8 @@ try:
         create_flink_pipeline,
         SmurfingPatternDetector,
         SmurfingPatternSelectFunction,
+        LayeringEventDuplicator,
+        RapidLayeringAnalyzer,
     )
     _has_streaming = True
 except ImportError:
@@ -38,6 +40,8 @@ except ImportError:
     create_flink_pipeline = None
     SmurfingPatternDetector = None
     SmurfingPatternSelectFunction = None
+    LayeringEventDuplicator = None
+    RapidLayeringAnalyzer = None
     _has_streaming = False
 
 __all__ = [
@@ -61,4 +65,6 @@ __all__ = [
     "create_flink_pipeline",
     "SmurfingPatternDetector",
     "SmurfingPatternSelectFunction",
+    "LayeringEventDuplicator",
+    "RapidLayeringAnalyzer",
 ]
