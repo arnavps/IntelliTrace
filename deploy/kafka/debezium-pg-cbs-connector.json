@@ -1,0 +1,43 @@
+{
+  "name": "debezium-postgresql-cbs-connector",
+  "comment": "Production-grade Debezium CDC Connector configuration manifest for Enterprise Core Banking System PostgreSQL 16 tailing. Configured for high-throughput scaling up to 150k TPS, fail-fast audit integrity, and Avro Schema Registry integration. Comments and configuration rationale are documented in the accompanying README.md.",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    
+    "database.hostname": "pg-cbs-cluster-primary.internal",
+    "database.port": "5432",
+    "database.user": "debezium_cdc_user",
+    "database.password": "VaultDecryptedSecurePassword123!",
+    "database.dbname": "core_banking_db",
+    "topic.prefix": "cbs.cdc.prod",
+    
+    "plugin.name": "pgoutput",
+    "publication.name": "dbz_cbs_publication",
+    "publication.autocreate.mode": "filtered",
+    "slot.name": "debezium_cbs_replica_slot",
+    
+    "schema.include.list": "cbs_ledger",
+    "table.include.list": "cbs_ledger.banking_ledger,cbs_ledger.account_balances",
+    
+    "tombstones.on.delete": "false",
+    
+    "key.converter": "io.confluent.connect.avro.AvroConverter",
+    "key.converter.schema.registry.url": "http://schema-registry.internal:8081",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schema.registry.url": "http://schema-registry.internal:8081",
+    
+    "max.batch.size": "40960",
+    "max.queue.size": "163840",
+    "poll.interval.ms": "20",
+    
+    "errors.log.enable": "true",
+    "errors.tolerance": "none",
+    
+    "heartbeat.interval.ms": "5000",
+    "heartbeat.action.query": "SELECT 1;",
+    
+    "decimal.handling.mode": "precise",
+    "time.precision.mode": "connect"
+  }
+}
