@@ -28,12 +28,16 @@ try:
         TransactionTimestampAssigner,
         IngestionProcessFunction,
         create_flink_pipeline,
+        SmurfingPatternDetector,
+        SmurfingPatternSelectFunction,
     )
     _has_streaming = True
 except ImportError:
     TransactionTimestampAssigner = None
     IngestionProcessFunction = None
     create_flink_pipeline = None
+    SmurfingPatternDetector = None
+    SmurfingPatternSelectFunction = None
     _has_streaming = False
 
 __all__ = [
@@ -55,4 +59,6 @@ __all__ = [
     "TransactionTimestampAssigner",
     "IngestionProcessFunction",
     "create_flink_pipeline",
+    "SmurfingPatternDetector",
+    "SmurfingPatternSelectFunction",
 ]
