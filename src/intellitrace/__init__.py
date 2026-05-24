@@ -23,6 +23,7 @@ from intellitrace.security import (
     validate_mobile,
 )
 from intellitrace.guard import IngestionDeduplicationGuard
+from intellitrace.entity_resolution import EntityResolutionEngine
 try:
     from intellitrace.streaming import (
         TransactionTimestampAssigner,
@@ -62,6 +63,7 @@ __all__ = [
     "validate_passport",
     "validate_mobile",
     "IngestionDeduplicationGuard",
+    "EntityResolutionEngine",
     "TransactionTimestampAssigner",
     "IngestionProcessFunction",
     "create_flink_pipeline",
