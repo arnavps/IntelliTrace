@@ -99,6 +99,14 @@ class MockValueStateDescriptor:
     def enable_time_to_live(self, ttl_config):
         self.ttl_config = ttl_config
 
+class MockMapStateDescriptor:
+    def __init__(self, name, key_type_info, value_type_info):
+        self.name = name
+        self.key_type_info = key_type_info
+        self.value_type_info = value_type_info
+    def enable_time_to_live(self, ttl_config):
+        self.ttl_config = ttl_config
+
 mock_pyflink = MagicMock()
 
 # Bind custom classes to mock to satisfy dynamic module imports cleanly
@@ -115,6 +123,7 @@ mock_pyflink.ExternalizedCheckpointCleanup.RETAIN_ON_CANCELLATION = "RETAIN"
 mock_pyflink.Time = MockTime
 mock_pyflink.StateTtlConfig = MockStateTtlConfig
 mock_pyflink.ValueStateDescriptor = MockValueStateDescriptor
+mock_pyflink.MapStateDescriptor = MockMapStateDescriptor
 
 # Set up clean namespaces in sys.modules
 for ns in [
@@ -134,6 +143,7 @@ from intellitrace.streaming import (
     SmurfingPatternSelectFunction,
     LayeringEventDuplicator,
     RapidLayeringAnalyzer,
+    DormantActivationMonitor,
 )
 from pyflink.datastream import OutputTag
 from pyflink.common import Types, CheckpointingMode
@@ -547,6 +557,245 @@ class TestRapidLayeringAnalyzer(unittest.TestCase):
             
         # Verify elapsed time calculated (first credit is 20:01:00, last debit is 20:10:00 -> diff = 9 minutes = 540,000 ms)
         self.assertEqual(alert_payload["elapsed_time_ms"], 540000)
+
+
+class TestDormantActivationMonitor(unittest.TestCase):
+    """Functional and state-flow tests validating money mule dormant account activation tracking."""
+
+    def setUp(self):
+        self.alert_tag = OutputTag("intellitrace-mule-alerts", Types.STRING())
+        self.monitor = DormantActivationMonitor(self.alert_tag)
+        
+        # Setup mock profile state
+        self.mock_profile_state = MagicMock()
+        self.mock_profile_state.value.return_value = None
+        
+        # Setup mock counterparties state
+        self.mock_counterparties_state = MagicMock()
+        self.mock_counterparties_state.contains.return_value = False
+        
+        # Inject mock states
+        self.monitor.profile_state = self.mock_profile_state
+        self.monitor.counterparties_state = self.mock_counterparties_state
+        
+        # Setup mock context
+        self.mock_context = MagicMock()
+
+    def test_dormant_activation_no_dormancy(self):
+        """Verify that accounts active within 180 days do not trigger anomaly tracking."""
+        now_ms = 1779652800000  # May 24, 2026 20:00:00
+        
+        # Active profile (last tx was 10 days ago)
+        profile = {
+            "last_transaction_timestamp": now_ms - (10 * 24 * 60 * 60 * 1000),
+            "historical_average_amount": 1000.0,
+            "historical_count": 5,
+            "dormancy_triggered": False,
+            "dormancy_activation_txn": None,
+            "active_window_dispersals": [],
+            "elapsed_dormancy_days": 0.0
+        }
+        self.mock_profile_state.value.return_value = json.dumps(profile)
+        
+        # Incoming credit of 25,000 INR (25x historical average, but active account)
+        event = json.dumps({
+            "account_id": "MULE-CANDIDATE",
+            "direction": "INCOMING",
+            "counterparty_id": "SRC1",
+            "amount_inr": 25000.0,
+            "txn_timestamp": "2026-05-24T20:00:00Z",
+            "txn_id": "T_ACT",
+            "channel": "UPI"
+        })
+        
+        results = list(self.monitor.process_element(event, self.mock_context))
+        self.assertEqual(len(results), 0)
+        self.mock_context.timer_service().register_event_time_timer.assert_not_called()
+        
+        # Profile state should update historical average normally
+        updated_profile = json.loads(self.mock_profile_state.update.call_args[0][0])
+        self.assertFalse(updated_profile["dormancy_triggered"])
+        self.assertEqual(updated_profile["historical_count"], 6)
+        self.assertAlmostEqual(updated_profile["historical_average_amount"], (1000.0 * 5 + 25000.0) / 6)
+
+    def test_dormant_activation_successful_match(self):
+        """Verify successful Money Mule anomaly match under 180-day dormancy and 90% outward dispersal."""
+        now_ms = 1779652800000  # May 24, 2026 20:00:00
+        
+        # Dormant profile (last tx was 190 days ago)
+        dormancy_ms = 190 * 24 * 60 * 60 * 1000
+        profile = {
+            "last_transaction_timestamp": now_ms - dormancy_ms,
+            "historical_average_amount": 1000.0,
+            "historical_count": 5,
+            "dormancy_triggered": False,
+            "dormancy_activation_txn": None,
+            "active_window_dispersals": [],
+            "elapsed_dormancy_days": 0.0
+        }
+        self.mock_profile_state.value.return_value = json.dumps(profile)
+        
+        # Activating incoming transaction (25,000 INR > 10x historical average)
+        activation_event = json.dumps({
+            "account_id": "MULE-CANDIDATE",
+            "direction": "INCOMING",
+            "counterparty_id": "SRC1",
+            "amount_inr": 25000.0,
+            "txn_timestamp": "2026-05-24T20:00:00Z",
+            "txn_id": "T_ACT",
+            "channel": "UPI"
+        })
+        
+        results = list(self.monitor.process_element(activation_event, self.mock_context))
+        self.assertEqual(len(results), 0)
+        
+        # Verify 2-hour timer registered
+        self.mock_context.timer_service().register_event_time_timer.assert_called_once_with(now_ms + 7200000)
+        
+        # State updated to dormancy triggered
+        updated_profile = json.loads(self.mock_profile_state.update.call_args[0][0])
+        self.assertTrue(updated_profile["dormancy_triggered"])
+        self.assertEqual(updated_profile["elapsed_dormancy_days"], 190.0)
+        
+        # Setup state for dispersals tracking
+        triggered_profile = updated_profile
+        self.mock_profile_state.value.return_value = json.dumps(triggered_profile)
+        
+        # Outgoing dispersal 1 (10,000 INR)
+        disp1 = json.dumps({
+            "account_id": "MULE-CANDIDATE",
+            "direction": "OUTGOING",
+            "counterparty_id": "DST1",
+            "amount_inr": 10000.0,
+            "txn_timestamp": "2026-05-24T20:30:00Z",
+            "txn_id": "D1",
+            "channel": "NEFT"
+        })
+        list(self.monitor.process_element(disp1, self.mock_context))
+        
+        # Update mock state with appended dispersal
+        disp1_profile = json.loads(self.mock_profile_state.update.call_args_list[-1][0][0])
+        self.mock_profile_state.value.return_value = json.dumps(disp1_profile)
+        
+        # Outgoing dispersal 2 (14,000 INR). Total dispersed = 24,000 INR (96% of 25,000)
+        disp2 = json.dumps({
+            "account_id": "MULE-CANDIDATE",
+            "direction": "OUTGOING",
+            "counterparty_id": "DST2",
+            "amount_inr": 14000.0,
+            "txn_timestamp": "2026-05-24T21:00:00Z",
+            "txn_id": "D2",
+            "channel": "IMPS"
+        })
+        list(self.monitor.process_element(disp2, self.mock_context))
+        
+        # Final mock state before timer
+        final_profile = json.loads(self.mock_profile_state.update.call_args_list[-1][0][0])
+        self.mock_profile_state.value.return_value = json.dumps(final_profile)
+        
+        # Fire 2-hour timer
+        mock_timer_ctx = MagicMock()
+        mock_timer_ctx.get_current_key.return_value = "MULE-CANDIDATE"
+        
+        timer_results = list(self.monitor.on_timer(now_ms + 7200000, mock_timer_ctx))
+        self.assertEqual(len(timer_results), 1)
+        
+        # Verify side output generated
+        mock_timer_ctx.output.assert_called_once()
+        call_args = mock_timer_ctx.output.call_args[0]
+        self.assertEqual(call_args[0], self.alert_tag)
+        
+        alert_payload = json.loads(call_args[1])
+        self.assertEqual(alert_payload["alert_type"], "MONEY_MULE_MOBILIZATION_DETECTED")
+        self.assertEqual(alert_payload["monitored_account_id"], "MULE-CANDIDATE")
+        self.assertEqual(alert_payload["days_of_dormancy"], 190.0)
+        self.assertEqual(alert_payload["total_injected_amount_inr"], 25000.0)
+        self.assertEqual(alert_payload["total_dispersed_amount_inr"], 24000.0)
+        self.assertEqual(alert_payload["dispersal_ratio"], 0.96)
+        self.assertEqual(alert_payload["distinct_counterparties_count"], 2)
+        
+        # Baseline drift index check (25,000 / 1000 = 25.0)
+        self.assertEqual(alert_payload["baseline_drift_index"], 25.0)
+        
+        # Velocity variance index check (variance of [10000, 14000] is 4,000,000)
+        self.assertEqual(alert_payload["velocity_variance_index"], 4000000.0)
+
+    def test_dormant_activation_with_preexisting_counterparty(self):
+        """Verify that outgoing dispersals to historically seen counterparties are excluded, preventing false alerts."""
+        now_ms = 1779652800000  # May 24, 2026 20:00:00
+        
+        # Dormant profile (last tx was 190 days ago)
+        dormancy_ms = 190 * 24 * 60 * 60 * 1000
+        profile = {
+            "last_transaction_timestamp": now_ms - dormancy_ms,
+            "historical_average_amount": 1000.0,
+            "historical_count": 5,
+            "dormancy_triggered": False,
+            "dormancy_activation_txn": None,
+            "active_window_dispersals": [],
+            "elapsed_dormancy_days": 0.0
+        }
+        self.mock_profile_state.value.return_value = json.dumps(profile)
+        
+        # Activating incoming transaction (25,000 INR)
+        activation_event = json.dumps({
+            "account_id": "MULE-CANDIDATE",
+            "direction": "INCOMING",
+            "counterparty_id": "SRC1",
+            "amount_inr": 25000.0,
+            "txn_timestamp": "2026-05-24T20:00:00Z",
+            "txn_id": "T_ACT",
+            "channel": "UPI"
+        })
+        list(self.monitor.process_element(activation_event, self.mock_context))
+        
+        # Setup mock counterparties state to return True only for DST1 (previously seen)
+        self.mock_counterparties_state.contains.side_effect = lambda cp: cp == "DST1"
+        
+        # Setup state for dispersals tracking
+        triggered_profile = json.loads(self.mock_profile_state.update.call_args[0][0])
+        self.mock_profile_state.value.return_value = json.dumps(triggered_profile)
+        
+        # Outgoing dispersal 1 (10,000 INR) to DST1 (not novel!)
+        disp1 = json.dumps({
+            "account_id": "MULE-CANDIDATE",
+            "direction": "OUTGOING",
+            "counterparty_id": "DST1",
+            "amount_inr": 10000.0,
+            "txn_timestamp": "2026-05-24T20:30:00Z",
+            "txn_id": "D1",
+            "channel": "NEFT"
+        })
+        list(self.monitor.process_element(disp1, self.mock_context))
+        
+        # Update mock state with appended dispersal
+        disp1_profile = json.loads(self.mock_profile_state.update.call_args_list[-1][0][0])
+        self.mock_profile_state.value.return_value = json.dumps(disp1_profile)
+        
+        # Outgoing dispersal 2 (14,000 INR) to DST2 (novel)
+        disp2 = json.dumps({
+            "account_id": "MULE-CANDIDATE",
+            "direction": "OUTGOING",
+            "counterparty_id": "DST2",
+            "amount_inr": 14000.0,
+            "txn_timestamp": "2026-05-24T21:00:00Z",
+            "txn_id": "D2",
+            "channel": "IMPS"
+        })
+        list(self.monitor.process_element(disp2, self.mock_context))
+        
+        # Final mock state before timer
+        final_profile = json.loads(self.mock_profile_state.update.call_args_list[-1][0][0])
+        self.mock_profile_state.value.return_value = json.dumps(final_profile)
+        
+        # Fire 2-hour timer
+        mock_timer_ctx = MagicMock()
+        mock_timer_ctx.get_current_key.return_value = "MULE-CANDIDATE"
+        
+        timer_results = list(self.monitor.on_timer(now_ms + 7200000, mock_timer_ctx))
+        # Should not generate alert since dispersed amount to novel counterparties is only 14,000 (56% < 90%)
+        self.assertEqual(len(timer_results), 0)
+        mock_timer_ctx.output.assert_not_called()
 
 
 if __name__ == "__main__":

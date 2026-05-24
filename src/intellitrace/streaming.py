@@ -31,7 +31,7 @@ from pyflink.datastream.connectors.kafka import (
 )
 from pyflink.datastream.state_backend import EmbeddedRocksDBStateBackend
 from pyflink.datastream.functions import KeyedProcessFunction, FlatMapFunction
-from pyflink.datastream.state import StateTtlConfig, ValueStateDescriptor
+from pyflink.datastream.state import StateTtlConfig, ValueStateDescriptor, MapStateDescriptor
 
 
 # Setup system logging framework via Slf4j/Log4j console bindings
@@ -546,6 +546,232 @@ class RapidLayeringAnalyzer(KeyedProcessFunction):
         self.debits_state.clear()
 
 
+class DormantActivationMonitor(KeyedProcessFunction):
+    """
+    Keyed stateful module monitoring long-term historical activity thresholds.
+    Detects classic money mule patterns where a dormant account (>= 180 days)
+    receives an incoming credit (> 10x historical average) and immediately
+    disperses >90% of it to downstream novel counterparties within a 2-hour window.
+    """
+    
+    def __init__(self, alert_tag: OutputTag):
+        self.alert_tag = alert_tag
+        self.profile_state = None
+        self.counterparties_state = None
+
+    def open(self, runtime_context):
+        # Configure State TTL cleanup (365 days window expiration to prevent memory bloat)
+        profile_ttl = StateTtlConfig.new_builder(Time.days(365)) \
+            .set_update_type(StateTtlConfig.UpdateType.OnCreateAndWrite) \
+            .set_state_visibility(StateTtlConfig.StateVisibility.NeverReturnExpired) \
+            .cleanup_in_rocksdb_compact_filter() \
+            .build()
+            
+        # Value state for active mule profile
+        profile_desc = ValueStateDescriptor("mule_profile", Types.STRING())
+        profile_desc.enable_time_to_live(profile_ttl)
+        self.profile_state = runtime_context.get_state(profile_desc)
+
+        # Map state for tracking historical counterparty accounts
+        counterparties_desc = MapStateDescriptor("mule_counterparties", Types.STRING(), Types.BOOLEAN())
+        counterparties_desc.enable_time_to_live(profile_ttl)
+        self.counterparties_state = runtime_context.get_map_state(counterparties_desc)
+
+    def process_element(self, value: str, ctx: KeyedProcessFunction.Context) -> Generator[str, None, None]:
+        try:
+            event = json.loads(value)
+        except Exception:
+            return
+
+        account_id = event.get("account_id")
+        direction = event.get("direction")
+        amount = float(event.get("amount_inr", 0.0))
+        txn_timestamp = event.get("txn_timestamp")
+        txn_id = event.get("txn_id")
+        counterparty_id = event.get("counterparty_id")
+        
+        try:
+            dt = datetime.fromisoformat(txn_timestamp.replace("Z", "+00:00"))
+            event_time_ms = int(dt.timestamp() * 1000)
+        except Exception:
+            return
+
+        # Load active profile state
+        profile_str = self.profile_state.value()
+        if profile_str:
+            profile = json.loads(profile_str)
+        else:
+            # Initialize profile state for a new account
+            profile = {
+                "last_transaction_timestamp": event_time_ms,
+                "historical_average_amount": amount if direction == "INCOMING" else 5000.0,
+                "historical_count": 1,
+                "dormancy_triggered": False,
+                "dormancy_activation_txn": None,
+                "active_window_dispersals": [],
+                "elapsed_dormancy_days": 0.0
+            }
+            self.profile_state.update(json.dumps(profile))
+            if counterparty_id:
+                self.counterparties_state.put(counterparty_id, True)
+            return
+
+        last_timestamp = profile["last_transaction_timestamp"]
+        elapsed_ms = event_time_ms - last_timestamp
+        elapsed_days = elapsed_ms / (24 * 60 * 60 * 1000)
+
+        # 180 days in ms = 15552000000
+        is_dormant_activation = (elapsed_ms >= 15552000000)
+
+        if is_dormant_activation and direction == "INCOMING":
+            historical_avg = float(profile["historical_average_amount"])
+            
+            # Anomaly spike: Incoming credit must be > 10x historical average
+            if amount > 10.0 * historical_avg:
+                # Trigger dormancy activation!
+                profile["dormancy_triggered"] = True
+                profile["elapsed_dormancy_days"] = round(elapsed_days, 2)
+                profile["dormancy_activation_txn"] = {
+                    "txn_id": txn_id,
+                    "txn_timestamp": txn_timestamp,
+                    "timestamp_ms": event_time_ms,
+                    "amount_inr": amount,
+                    "channel": event.get("channel")
+                }
+                profile["active_window_dispersals"] = []
+                profile["last_transaction_timestamp"] = event_time_ms
+                
+                self.profile_state.update(json.dumps(profile))
+                
+                # Register a 2-hour timer to evaluate the outward dispersal (2 hours in ms = 7200000)
+                ctx.timer_service().register_event_time_timer(event_time_ms + 7200000)
+                return
+
+        # If dormancy-verification is active: track outgoing debits
+        if profile["dormancy_triggered"]:
+            activation_time = profile["dormancy_activation_txn"]["timestamp_ms"]
+            
+            if direction == "OUTGOING":
+                # Check if it fits the 2-hour window
+                if event_time_ms <= activation_time + 7200000:
+                    # Check if this counterparty is novel/unmapped using MapState
+                    is_novel = not self.counterparties_state.contains(counterparty_id) if counterparty_id else True
+                    
+                    profile["active_window_dispersals"].append({
+                        "txn_id": txn_id,
+                        "counterparty_id": counterparty_id,
+                        "amount_inr": amount,
+                        "txn_timestamp": txn_timestamp,
+                        "channel": event.get("channel"),
+                        "timestamp_ms": event_time_ms,
+                        "is_novel": is_novel
+                    })
+        else:
+            # Normal profile tracking: update historical credit average
+            if direction == "INCOMING":
+                hist_avg = float(profile["historical_average_amount"])
+                hist_count = int(profile["historical_count"])
+                new_count = hist_count + 1
+                profile["historical_average_amount"] = (hist_avg * hist_count + amount) / new_count
+                profile["historical_count"] = new_count
+            
+            # MapState tracking: record this counterparty as seen/mapped
+            if counterparty_id:
+                self.counterparties_state.put(counterparty_id, True)
+
+        # Always update last timestamp to keep track of dormancy intervals
+        profile["last_transaction_timestamp"] = event_time_ms
+        self.profile_state.update(json.dumps(profile))
+        
+        if False:
+            yield
+
+    def on_timer(self, timestamp: int, ctx: KeyedProcessFunction.OnTimerContext) -> Generator[str, None, None]:
+        profile_str = self.profile_state.value()
+        if not profile_str:
+            return
+
+        profile = json.loads(profile_str)
+        if not profile.get("dormancy_triggered"):
+            return
+
+        activation_txn = profile["dormancy_activation_txn"]
+        dispersals = profile["active_window_dispersals"]
+
+        # Novel, unmapped counterparties filter
+        novel_dispersals = [d for d in dispersals if d.get("is_novel", True)]
+
+        total_injected = float(activation_txn["amount_inr"])
+        total_dispersed = sum(float(d["amount_inr"]) for d in novel_dispersals)
+        distinct_counterparties = set(d["counterparty_id"] for d in novel_dispersals if d.get("counterparty_id"))
+        
+        # Money mule criteria check:
+        # 1. Outward dispersal of > 90% of newly injected balance to novel counterparty accounts
+        # 2. Sent to novel counterparty accounts (distinct counterparty count >= 1)
+        is_mule = (
+            total_dispersed >= 0.90 * total_injected and
+            len(distinct_counterparties) >= 1
+        )
+
+        if is_mule:
+            import uuid
+            
+            # Compute velocity variance index (statistical variance of dispersal amounts to novel counterparties)
+            amounts = [float(d["amount_inr"]) for d in novel_dispersals]
+            n = len(amounts)
+            mean = sum(amounts) / n if n > 0 else 0.0
+            variance = sum((x - mean) ** 2 for x in amounts) / n if n > 0 else 0.0
+            
+            # Compute baseline drift index (activating credit amount divided by historical average)
+            historical_avg = float(profile["historical_average_amount"])
+            baseline_drift = total_injected / historical_avg if historical_avg > 0 else 1.0
+
+            alert_payload = {
+                "alert_id": str(uuid.uuid4()),
+                "alert_type": "MONEY_MULE_MOBILIZATION_DETECTED",
+                "severity": "CRITICAL",
+                "monitored_account_id": ctx.get_current_key(),
+                "days_of_dormancy": profile["elapsed_dormancy_days"],
+                "velocity_variance_index": round(variance, 4),
+                "baseline_drift_index": round(baseline_drift, 4),
+                "total_injected_amount_inr": round(total_injected, 2),
+                "total_dispersed_amount_inr": round(total_dispersed, 2),
+                "dispersal_ratio": round(total_dispersed / total_injected, 4),
+                "distinct_counterparties_count": len(distinct_counterparties),
+                "activating_transaction": {
+                    "txn_id": activation_txn["txn_id"],
+                    "txn_timestamp": activation_txn["txn_timestamp"],
+                    "amount_inr": float(activation_txn["amount_inr"]),
+                    "channel": activation_txn["channel"]
+                },
+                "dispersals": [
+                    {
+                        "txn_id": d["txn_id"],
+                        "counterparty_id": d["counterparty_id"],
+                        "amount_inr": float(d["amount_inr"]),
+                        "txn_timestamp": d["txn_timestamp"],
+                        "channel": d["channel"]
+                    } for d in novel_dispersals
+                ],
+                "triggered_at": datetime.now(timezone.utc).isoformat()
+            }
+
+            ctx.output(self.alert_tag, json.dumps(alert_payload))
+            yield json.dumps(alert_payload)
+
+        # Mark all dispersals as transacted in MapState to prevent them from being novel in future
+        for d in dispersals:
+            cp_id = d.get("counterparty_id")
+            if cp_id:
+                self.counterparties_state.put(cp_id, True)
+
+        # Reset dormancy triggers
+        profile["dormancy_triggered"] = False
+        profile["dormancy_activation_txn"] = None
+        profile["active_window_dispersals"] = []
+        self.profile_state.update(json.dumps(profile))
+
+
 def create_flink_pipeline(
     bootstrap_servers: str = "kafka-bootstrap.internal:9092",
     source_topic: str = "intellitrace.txns.raw",
@@ -686,6 +912,18 @@ def create_flink_pipeline(
     layering_alert_side_stream = layering_stream.get_side_output(layering_alert_tag)
 
     # ------------------------------------------------------------------
+    # 5.7. Stateful Long-Term Dormancy & Mule Mobilization Tracking
+    # ------------------------------------------------------------------
+    mule_alert_tag = OutputTag("intellitrace-mule-alerts", Types.STRING())
+    mule_stream = layering_keyed_stream.process(
+        DormantActivationMonitor(mule_alert_tag),
+        output_type=Types.STRING()
+    )
+    
+    # Extract money mule alerts side-output
+    mule_alert_side_stream = mule_stream.get_side_output(mule_alert_tag)
+
+    # ------------------------------------------------------------------
     # 6. Primary, Secondary and Fraud Alert Kafka Event Sinks (RF 3)
     # ------------------------------------------------------------------
     # Primary Enriched Topic Sink
@@ -725,7 +963,7 @@ def create_flink_pipeline(
         .build()
 
     # Union all alert streams together to sink to a single alerts Kafka topic
-    unified_alerts_stream = alert_side_stream.union(layering_alert_side_stream)
+    unified_alerts_stream = alert_side_stream.union(layering_alert_side_stream, mule_alert_side_stream)
 
     # Bind Sinks to Flink Streams
     main_processed_stream.sink_to(enriched_sink).name("Kafka-Enriched-Sink")

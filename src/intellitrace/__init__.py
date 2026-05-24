@@ -32,6 +32,7 @@ try:
         SmurfingPatternSelectFunction,
         LayeringEventDuplicator,
         RapidLayeringAnalyzer,
+        DormantActivationMonitor,
     )
     _has_streaming = True
 except ImportError:
@@ -42,6 +43,7 @@ except ImportError:
     SmurfingPatternSelectFunction = None
     LayeringEventDuplicator = None
     RapidLayeringAnalyzer = None
+    DormantActivationMonitor = None
     _has_streaming = False
 
 __all__ = [
@@ -67,4 +69,5 @@ __all__ = [
     "SmurfingPatternSelectFunction",
     "LayeringEventDuplicator",
     "RapidLayeringAnalyzer",
+    "DormantActivationMonitor",
 ]
