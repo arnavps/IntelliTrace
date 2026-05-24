@@ -30,3 +30,11 @@ class IUTSNormalizationError(IUTSException):
     failing to convert an external currency code due to missing rates, or mapping anomalies.
     """
     pass
+
+
+class PIISecurityException(IUTSException):
+    """
+    Exception raised when a PII credential validation, formatting, or cryptographic
+    tokenization operation fails at the ingestion boundary.
+    """
+    pass

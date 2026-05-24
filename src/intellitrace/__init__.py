@@ -9,15 +9,31 @@ from intellitrace.exceptions import (
     IUTSException,
     IUTSValidationError,
     IUTSNormalizationError,
+    PIISecurityException,
 )
 from intellitrace.schema import IUTSModel, ChannelEnum
 from intellitrace.factory import IUTSAdapterFactory
+from intellitrace.security import (
+    PIISecurityBoundary,
+    validate_verhoeff,
+    validate_aadhaar,
+    validate_pan,
+    validate_passport,
+    validate_mobile,
+)
 
 __all__ = [
     "IUTSException",
     "IUTSValidationError",
     "IUTSNormalizationError",
+    "PIISecurityException",
     "IUTSModel",
     "ChannelEnum",
     "IUTSAdapterFactory",
+    "PIISecurityBoundary",
+    "validate_verhoeff",
+    "validate_aadhaar",
+    "validate_pan",
+    "validate_passport",
+    "validate_mobile",
 ]
