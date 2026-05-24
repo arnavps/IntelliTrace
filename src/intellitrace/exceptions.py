@@ -38,3 +38,11 @@ class PIISecurityException(IUTSException):
     tokenization operation fails at the ingestion boundary.
     """
     pass
+
+
+class RedisConnectionException(IUTSException):
+    """
+    Exception raised when Redis cluster connections or commands fail
+    repeatedly after exhausting all retries.
+    """
+    pass

@@ -10,6 +10,7 @@ from intellitrace.exceptions import (
     IUTSValidationError,
     IUTSNormalizationError,
     PIISecurityException,
+    RedisConnectionException,
 )
 from intellitrace.schema import IUTSModel, ChannelEnum
 from intellitrace.factory import IUTSAdapterFactory
@@ -21,12 +22,14 @@ from intellitrace.security import (
     validate_passport,
     validate_mobile,
 )
+from intellitrace.guard import IngestionDeduplicationGuard
 
 __all__ = [
     "IUTSException",
     "IUTSValidationError",
     "IUTSNormalizationError",
     "PIISecurityException",
+    "RedisConnectionException",
     "IUTSModel",
     "ChannelEnum",
     "IUTSAdapterFactory",
@@ -36,4 +39,5 @@ __all__ = [
     "validate_pan",
     "validate_passport",
     "validate_mobile",
+    "IngestionDeduplicationGuard",
 ]
