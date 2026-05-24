@@ -24,6 +24,7 @@ from intellitrace.security import (
 )
 from intellitrace.guard import IngestionDeduplicationGuard
 from intellitrace.entity_resolution import EntityResolutionEngine
+from intellitrace.round_tripping import RoundTrippingTracer
 try:
     from intellitrace.streaming import (
         TransactionTimestampAssigner,
@@ -64,6 +65,7 @@ __all__ = [
     "validate_mobile",
     "IngestionDeduplicationGuard",
     "EntityResolutionEngine",
+    "RoundTrippingTracer",
     "TransactionTimestampAssigner",
     "IngestionProcessFunction",
     "create_flink_pipeline",
