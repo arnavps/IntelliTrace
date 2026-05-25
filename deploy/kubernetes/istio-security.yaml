@@ -1,0 +1,96 @@
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: intellitrace-strict-mtls
+  namespace: intellitrace
+spec:
+  mtls:
+    mode: STRICT
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: default-deny-all
+  namespace: intellitrace
+spec:
+  # An empty spec automatically applies a default "deny-all" policy to every pod in the namespace.
+  # This blocks all external and internal unauthorized traffic not explicitly allowed below.
+  {}
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: api-gateway-ingress-auth
+  namespace: intellitrace
+spec:
+  selector:
+    matchLabels:
+      app: api-gateway
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/intellitrace/sa/investigator-ui"]
+
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: graph-datastore-auth
+  namespace: intellitrace
+spec:
+  selector:
+    matchLabels:
+      app: neo4j
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: ["cluster.local/ns/intellitrace/sa/graph-updater"]
+      to:
+        - operation:
+            ports: ["7687"] # Dedicated gRPC/Bolt port for graph updates
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: neo4j-circuit-breaker
+  namespace: intellitrace
+spec:
+  host: neo4j.intellitrace.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 1000
+        connectTimeout: 50ms
+      http:
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 1000
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 15s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 100
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: postgres-circuit-breaker
+  namespace: intellitrace
+spec:
+  host: postgres.intellitrace.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 500
+        connectTimeout: 30ms
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 50
