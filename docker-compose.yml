@@ -1,0 +1,160 @@
+version: '3.8'
+
+x-healthcheck-defaults: &healthcheck-defaults
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: intellitrace-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - intellitrace-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      <<: *healthcheck-defaults
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: intellitrace-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CREATE_TOPICS: "intellitrace-transactions:1:1,intellitrace-alerts:1:1,intellitrace-audit:1:1"
+    ports:
+      - "9092:9092"
+    networks:
+      - intellitrace-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "29092"]
+      <<: *healthcheck-defaults
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.5.0
+    container_name: intellitrace-schema-registry
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: 'kafka:29092'
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+    ports:
+      - "8081:8081"
+    networks:
+      - intellitrace-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/"]
+      <<: *healthcheck-defaults
+
+  neo4j:
+    image: neo4j:5.12.0-enterprise
+    container_name: intellitrace-neo4j
+    environment:
+      NEO4J_AUTH: neo4j/IntelliTraceGraph2026
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+      NEO4J_server_memory_heap_initial__size: 2G
+      NEO4J_server_memory_heap_max__size: 4G
+      NEO4J_server_memory_pagecache_size: 2G
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j-data:/data
+    networks:
+      - intellitrace-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:7474/"]
+      <<: *healthcheck-defaults
+
+  postgres:
+    image: postgres:16
+    container_name: intellitrace-postgres
+    environment:
+      POSTGRES_USER: intellitrace_admin
+      POSTGRES_PASSWORD: IntelliTraceSecureDB2026
+      POSTGRES_DB: intellitracedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - intellitrace-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U intellitrace_admin -d intellitracedb"]
+      <<: *healthcheck-defaults
+
+  redis:
+    image: redislabs/rebloom:latest
+    container_name: intellitrace-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - intellitrace-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      <<: *healthcheck-defaults
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: intellitrace-prometheus
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - intellitrace-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      <<: *healthcheck-defaults
+
+  grafana:
+    image: grafana/grafana:10.1.5
+    container_name: intellitrace-grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: GrafanaSecurePassword2026
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - intellitrace-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      <<: *healthcheck-defaults
+
+networks:
+  intellitrace-network:
+    driver: bridge
+
+volumes:
+  neo4j-data:
+  postgres-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
