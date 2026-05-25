@@ -1,0 +1,253 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: intellitrace
+---
+# ==========================================
+# DEPLOYMENTS
+# ==========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transaction-ingester
+  namespace: intellitrace
+  labels:
+    app: transaction-ingester
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  selector:
+    matchLabels:
+      app: transaction-ingester
+  template:
+    metadata:
+      labels:
+        app: transaction-ingester
+    spec:
+      containers:
+        - name: ingester
+          image: intellitrace/ingester:1.0.0
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-resolver
+  namespace: intellitrace
+  labels:
+    app: identity-resolver
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  selector:
+    matchLabels:
+      app: identity-resolver
+  template:
+    metadata:
+      labels:
+        app: identity-resolver
+    spec:
+      containers:
+        - name: resolver
+          image: intellitrace/resolver:1.0.0
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "4Gi"
+            limits:
+              cpu: "2000m"
+              memory: "8Gi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-scorer-xgb
+  namespace: intellitrace
+  labels:
+    app: ml-scorer-xgb
+spec:
+  replicas: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  selector:
+    matchLabels:
+      app: ml-scorer-xgb
+  template:
+    metadata:
+      labels:
+        app: ml-scorer-xgb
+    spec:
+      containers:
+        - name: scorer
+          image: intellitrace/ml-scorer:1.0.0
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: "8Gi"
+            limits:
+              cpu: "4000m"
+              memory: "16Gi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+---
+# ==========================================
+# HORIZONTAL POD AUTOSCALERS
+# ==========================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-transaction-ingester
+  namespace: intellitrace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: transaction-ingester
+  minReplicas: 3
+  maxReplicas: 15
+  metrics:
+    - type: Object
+      object:
+        describedObject:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: transaction-ingester
+        metric:
+          name: kafka_consumer_lag
+        target:
+          type: Value
+          value: 10000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hpa-ml-scorer-xgb
+  namespace: intellitrace
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ml-scorer-xgb
+  minReplicas: 5
+  maxReplicas: 25
+  metrics:
+    - type: Object
+      object:
+        describedObject:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: ml-scorer-xgb
+        metric:
+          name: processing_queue_depth
+        target:
+          type: Value
+          value: 500
+---
+# ==========================================
+# POD DISRUPTION BUDGETS
+# ==========================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pdb-intellitrace-core
+  namespace: intellitrace
+spec:
+  maxUnavailable: 1
+  selector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - transaction-ingester
+          - identity-resolver
+          - ml-scorer-xgb
+---
+# ==========================================
+# NETWORK POLICIES
+# ==========================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-isolation-policy
+  namespace: intellitrace
+spec:
+  podSelector:
+    matchLabels:
+      tier: database
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - transaction-ingester
+                  - identity-resolver
+                  - ml-scorer-xgb
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 7687
+        - protocol: TCP
+          port: 6379
