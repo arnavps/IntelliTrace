@@ -38,6 +38,7 @@ from intellitrace.pmla_mapper import PMLATypologyMapper
 from intellitrace.insider_threat import InsiderThreatFusionLayer
 from intellitrace.narrative_generator import ProsecutorialNarrativeGenerator
 from intellitrace.str_compiler import FIUINDReportCompiler
+from intellitrace.audit_logger import CryptographicAuditLogger
 try:
     from intellitrace.streaming import (
         TransactionTimestampAssigner,
@@ -96,4 +97,5 @@ __all__ = [
     "InsiderThreatFusionLayer",
     "ProsecutorialNarrativeGenerator",
     "FIUINDReportCompiler",
+    "CryptographicAuditLogger",
 ]
