@@ -1,0 +1,1390 @@
+{
+    "project": {
+        "name": "Finova",
+        "type": "Finance SaaS Landing Page",
+        "tagline": "Clarity. Control. Confidence.",
+        "copyright": "© 2026 Finova. All rights reserved.",
+        "description": "Next-generation finance platform for tracking, analyzing, and optimizing financial performance in real time."
+    },
+    "color_palette": {
+        "primary": {
+            "hex": "#F5A623",
+            "rgb": "rgb(245, 166, 35)",
+            "hsl": "hsl(37, 91%, 55%)",
+            "usage": "CTA buttons (Pro Plan), accent highlights, logo icon, badge tags, active chart bar, feature icons, quote marks"
+        },
+        "primary_dark": {
+            "hex": "#D4891A",
+            "rgb": "rgb(212, 137, 26)",
+            "usage": "Primary button hover states"
+        },
+        "background": {
+            "page": {
+                "hex": "#0A0A0A",
+                "rgb": "rgb(10, 10, 10)",
+                "usage": "Overall page background, darkest sections"
+            },
+            "section_dark": {
+                "hex": "#111111",
+                "rgb": "rgb(17, 17, 17)",
+                "usage": "Alternate section backgrounds"
+            },
+            "card": {
+                "hex": "#1A1A1A",
+                "rgb": "rgb(26, 26, 26)",
+                "usage": "Card backgrounds, modal surfaces"
+            },
+            "card_elevated": {
+                "hex": "#222222",
+                "rgb": "rgb(34, 34, 34)",
+                "usage": "Elevated card surfaces, input fields"
+            },
+            "nav": {
+                "hex": "#0D0D0D",
+                "rgb": "rgb(13, 13, 13)",
+                "usage": "Navigation bar background"
+            }
+        },
+        "text": {
+            "primary": {
+                "hex": "#FFFFFF",
+                "rgb": "rgb(255, 255, 255)",
+                "usage": "Main headings, primary body text"
+            },
+            "secondary": {
+                "hex": "#999999",
+                "rgb": "rgb(153, 153, 153)",
+                "usage": "Subheadings, descriptive body copy, muted labels"
+            },
+            "muted": {
+                "hex": "#666666",
+                "rgb": "rgb(102, 102, 102)",
+                "usage": "Placeholder text, disabled states, fine print"
+            },
+            "accent_gold": {
+                "hex": "#F5A623",
+                "rgb": "rgb(245, 166, 35)",
+                "usage": "Highlighted words in mixed-style headings (italic portions)"
+            },
+            "link": {
+                "hex": "#FFFFFF",
+                "rgb": "rgb(255, 255, 255)",
+                "usage": "Navigation links"
+            },
+            "link_hover": {
+                "hex": "#F5A623",
+                "rgb": "rgb(245, 166, 35)",
+                "usage": "Navigation link hover"
+            }
+        },
+        "border": {
+            "default": {
+                "hex": "#2A2A2A",
+                "rgb": "rgb(42, 42, 42)",
+                "width": "1px",
+                "usage": "Card borders, section dividers, input borders"
+            },
+            "subtle": {
+                "hex": "#1E1E1E",
+                "rgb": "rgb(30, 30, 30)",
+                "width": "1px",
+                "usage": "Subtle separators, FAQ row borders"
+            },
+            "accent": {
+                "hex": "#F5A623",
+                "rgb": "rgb(245, 166, 35)",
+                "width": "1px",
+                "usage": "Active card borders, selected plan border, focus ring"
+            }
+        },
+        "status": {
+            "success": {
+                "hex": "#4CAF50",
+                "rgb": "rgb(76, 175, 80)",
+                "usage": "Completed status badges, checkmarks in pricing"
+            },
+            "warning": {
+                "hex": "#F5A623",
+                "rgb": "rgb(245, 166, 35)",
+                "usage": "Pending status badges"
+            },
+            "info": {
+                "hex": "#2196F3",
+                "rgb": "rgb(33, 150, 243)",
+                "usage": "USD currency badges"
+            }
+        },
+        "chart": {
+            "bar_active": "#F5A623",
+            "bar_inactive": "#2A2A2A",
+            "line_primary": "#F5A623",
+            "line_secondary": "#FFFFFF"
+        },
+        "overlay": {
+            "modal_backdrop": "rgba(0,0,0,0.8)",
+            "card_overlay_gradient": "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 100%)"
+        }
+    },
+    "typography": {
+        "font_families": {
+            "primary_sans": {
+                "name": "Geist",
+                "fallback": "'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif",
+                "usage": "Primary body text, navigation, buttons, labels, numbers"
+            },
+            "display_serif": {
+                "name": "Playfair Display",
+                "fallback": "'Cormorant Garamond', 'Georgia', serif",
+                "usage": "Italic decorative portions of section headings (e.g., 'a Digital World', 'Smarter Finance', 'Financial Future')"
+            }
+        },
+        "weights": {
+            "light": 300,
+            "regular": 400,
+            "medium": 500,
+            "semibold": 600,
+            "bold": 700,
+            "extrabold": 800
+        },
+        "scale": {
+            "hero_h1": {
+                "size": "56px",
+                "line_height": "1.1",
+                "weight": 700,
+                "letter_spacing": "-0.02em",
+                "font": "primary_sans + display_serif mix",
+                "note": "Mixed: sans-serif for 'Next-Gen Finance for', serif italic for 'a Digital World'"
+            },
+            "section_h2": {
+                "size": "42px",
+                "line_height": "1.15",
+                "weight": 700,
+                "letter_spacing": "-0.01em",
+                "note": "Mixed style: regular weight for first part, serif italic for emphasized part"
+            },
+            "section_h2_large": {
+                "size": "48px",
+                "line_height": "1.1",
+                "weight": 700,
+                "letter_spacing": "-0.015em",
+                "note": "Used in about section paragraph heading"
+            },
+            "card_h3": {
+                "size": "24px",
+                "line_height": "1.3",
+                "weight": 600,
+                "letter_spacing": "-0.005em"
+            },
+            "card_h4": {
+                "size": "18px",
+                "line_height": "1.4",
+                "weight": 600,
+                "letter_spacing": "0"
+            },
+            "nav_link": {
+                "size": "14px",
+                "line_height": "1",
+                "weight": 400,
+                "letter_spacing": "0"
+            },
+            "body_large": {
+                "size": "16px",
+                "line_height": "1.6",
+                "weight": 400
+            },
+            "body": {
+                "size": "14px",
+                "line_height": "1.6",
+                "weight": 400
+            },
+            "caption": {
+                "size": "12px",
+                "line_height": "1.5",
+                "weight": 400
+            },
+            "label": {
+                "size": "11px",
+                "line_height": "1",
+                "weight": 500,
+                "letter_spacing": "0.02em"
+            },
+            "button_primary": {
+                "size": "14px",
+                "line_height": "1",
+                "weight": 500,
+                "letter_spacing": "0"
+            },
+            "badge": {
+                "size": "11px",
+                "line_height": "1",
+                "weight": 500,
+                "letter_spacing": "0.02em"
+            },
+            "stat_number": {
+                "size": "28px",
+                "line_height": "1",
+                "weight": 700,
+                "letter_spacing": "-0.02em"
+            },
+            "money_large": {
+                "size": "32px",
+                "line_height": "1.1",
+                "weight": 700,
+                "letter_spacing": "-0.03em"
+            },
+            "price_hero": {
+                "size": "36px",
+                "line_height": "1",
+                "weight": 700,
+                "letter_spacing": "-0.02em"
+            },
+            "footer_brand": {
+                "size": "72px",
+                "line_height": "1",
+                "weight": 800,
+                "letter_spacing": "-0.03em",
+                "color": "rgba(255,255,255,0.04)",
+                "note": "Giant watermark 'Finova' text at bottom of footer"
+            }
+        },
+        "text_styles": {
+            "mixed_heading": {
+                "description": "Section headings that combine sans-serif regular weight with serif italic for emphasis",
+                "example": "'Simple Steps to' (sans bold) + 'Smarter Finance' (serif italic)",
+                "serif_color": "inherits white unless accent context"
+            },
+            "italic_accent": {
+                "description": "Specific words within headings rendered in Playfair Display italic",
+                "examples": [
+                    "a Digital World",
+                    "Smarter Finance",
+                    "Financial Future",
+                    "Fits Your Needs",
+                    "with Confidence"
+                ]
+            }
+        }
+    },
+    "spacing_layout": {
+        "base_unit": "4px",
+        "scale": {
+            "xs": "4px",
+            "sm": "8px",
+            "md": "16px",
+            "lg": "24px",
+            "xl": "32px",
+            "2xl": "48px",
+            "3xl": "64px",
+            "4xl": "96px",
+            "5xl": "128px"
+        },
+        "container": {
+            "max_width": "1200px",
+            "padding_x": "24px",
+            "padding_x_desktop": "48px"
+        },
+        "grid": {
+            "columns": 12,
+            "gutter": "24px",
+            "gutter_desktop": "32px"
+        },
+        "section_padding": {
+            "hero": {
+                "top": "120px",
+                "bottom": "80px"
+            },
+            "about": {
+                "top": "80px",
+                "bottom": "80px"
+            },
+            "how_it_works": {
+                "top": "80px",
+                "bottom": "80px"
+            },
+            "features": {
+                "top": "80px",
+                "bottom": "80px"
+            },
+            "pricing": {
+                "top": "80px",
+                "bottom": "80px"
+            },
+            "testimonials": {
+                "top": "80px",
+                "bottom": "80px"
+            },
+            "faq": {
+                "top": "60px",
+                "bottom": "80px"
+            },
+            "cta_footer": {
+                "top": "80px",
+                "bottom": "60px"
+            },
+            "footer_links": {
+                "top": "48px",
+                "bottom": "32px"
+            }
+        },
+        "breakpoints": {
+            "mobile": "375px",
+            "tablet": "768px",
+            "desktop": "1024px",
+            "wide": "1280px"
+        }
+    },
+    "components": {
+        "navigation": {
+            "layout": "fixed top, full-width, horizontal flex",
+            "height": "64px",
+            "background": "rgba(10,10,10,0.95)",
+            "backdrop_filter": "blur(12px)",
+            "border_bottom": "1px solid #1E1E1E",
+            "padding_x": "48px",
+            "z_index": 1000,
+            "logo": {
+                "icon": "yellow lightning bolt / arrow icon",
+                "icon_size": "24px",
+                "icon_color": "#F5A623",
+                "text": "Finova",
+                "text_size": "18px",
+                "text_weight": 600,
+                "text_color": "#FFFFFF",
+                "gap_between_icon_text": "8px"
+            },
+            "menu_items": [
+                "Home",
+                "Features",
+                "Solutions",
+                "Analytics",
+                "Pricing"
+            ],
+            "menu_style": {
+                "font_size": "14px",
+                "font_weight": 400,
+                "color": "#999999",
+                "hover_color": "#FFFFFF",
+                "active_color": "#FFFFFF",
+                "gap": "32px"
+            },
+            "cta_buttons": {
+                "login": {
+                    "text": "Login",
+                    "style": "ghost",
+                    "color": "#FFFFFF",
+                    "font_size": "14px",
+                    "padding": "8px 16px"
+                },
+                "signup": {
+                    "text": "Sign Up",
+                    "style": "outline",
+                    "border": "1px solid #FFFFFF",
+                    "color": "#FFFFFF",
+                    "background": "transparent",
+                    "hover_background": "#FFFFFF",
+                    "hover_color": "#000000",
+                    "border_radius": "6px",
+                    "padding": "8px 20px",
+                    "font_size": "14px",
+                    "font_weight": 500
+                }
+            }
+        },
+        "hero_section": {
+            "layout": "centered, full-width",
+            "min_height": "100vh",
+            "background": {
+                "type": "image",
+                "description": "Aerial/mountainous landscape at dusk/dawn — dark atmosphere with misty mountain silhouettes emerging from clouds. Dramatic, cinematic mood. Very dark overall (near-black sky at top, dark blue-grey mountains, cloud layer at mid-height).",
+                "overlay": "linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.7) 100%)",
+                "object_fit": "cover",
+                "object_position": "center center"
+            },
+            "badge": {
+                "text": "🚀 Grow Your Wealth Faster",
+                "background": "rgba(255,255,255,0.1)",
+                "border": "1px solid rgba(255,255,255,0.15)",
+                "border_radius": "20px",
+                "padding": "6px 14px",
+                "font_size": "12px",
+                "font_weight": 500,
+                "color": "#FFFFFF",
+                "margin_bottom": "24px"
+            },
+            "headline": {
+                "line1": "Next-Gen Finance for",
+                "line2_italic_serif": "a Digital World",
+                "line1_style": "font: primary_sans, weight 700, color #FFFFFF",
+                "line2_style": "font: Playfair Display italic, weight 700, color #FFFFFF",
+                "font_size": "56px",
+                "line_height": "1.1",
+                "text_align": "center",
+                "max_width": "600px",
+                "margin": "0 auto 16px"
+            },
+            "subheadline": {
+                "text": "Experience next-generation finance with powerful insights, automation, and real-time control.",
+                "font_size": "16px",
+                "color": "rgba(255,255,255,0.7)",
+                "text_align": "center",
+                "max_width": "440px",
+                "margin": "0 auto 40px"
+            },
+            "cta_buttons": {
+                "layout": "row, gap 12px, centered",
+                "primary": {
+                    "text": "Start Free Trial ↗",
+                    "background": "#FFFFFF",
+                    "color": "#000000",
+                    "border_radius": "8px",
+                    "padding": "12px 24px",
+                    "font_size": "14px",
+                    "font_weight": 600,
+                    "hover_background": "#F0F0F0",
+                    "arrow_icon": true
+                },
+                "secondary": {
+                    "text": "Learn More ↗",
+                    "background": "transparent",
+                    "color": "#FFFFFF",
+                    "border": "1px solid rgba(255,255,255,0.3)",
+                    "border_radius": "8px",
+                    "padding": "12px 24px",
+                    "font_size": "14px",
+                    "font_weight": 500,
+                    "hover_border": "1px solid rgba(255,255,255,0.6)"
+                }
+            },
+            "floating_ui_cards": {
+                "description": "Three floating phone/card UI mockups overlaid on the hero image, arranged in a slight fan-like composition",
+                "cards": [
+                    {
+                        "type": "transaction_history",
+                        "position": "left, overlapping center phone",
+                        "width": "180px",
+                        "background": "rgba(20,20,20,0.9)",
+                        "border_radius": "12px",
+                        "border": "1px solid #2A2A2A",
+                        "content": {
+                            "header": {
+                                "title": "Transaction History",
+                                "search_icon": true
+                            },
+                            "items": [
+                                {
+                                    "icon": "Spotify green circle",
+                                    "label": "Spotify",
+                                    "amount": "-$15.99",
+                                    "color": "red"
+                                },
+                                {
+                                    "icon": "PayPal blue",
+                                    "label": "PayPal Transfer",
+                                    "amount": "+$120.00",
+                                    "color": "green"
+                                },
+                                {
+                                    "icon": "W purple",
+                                    "label": "Wayflow Income",
+                                    "amount": "+$950.00",
+                                    "color": "green"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "type": "main_balance_phone",
+                        "position": "center, front",
+                        "width": "220px",
+                        "background": "dark phone mockup with status bar",
+                        "border_radius": "20px",
+                        "border": "1px solid #333",
+                        "content": {
+                            "greeting": "Good morning, Sajibur Rahman",
+                            "balance_label": "Total Balance",
+                            "balance": "$56,893.30",
+                            "balance_change": "+$3,456.00 18.5%",
+                            "upcoming_payment": "Upcoming Payment - Pay Now",
+                            "quick_actions": [
+                                "Deposit",
+                                "Transfer"
+                            ],
+                            "tabs": [
+                                "Transactions",
+                                "See More"
+                            ]
+                        }
+                    },
+                    {
+                        "type": "savings_plan",
+                        "position": "right, overlapping center phone",
+                        "width": "180px",
+                        "background": "rgba(20,20,20,0.9)",
+                        "border_radius": "12px",
+                        "border": "1px solid #2A2A2A",
+                        "content": {
+                            "header": "My Savings Plan",
+                            "items": [
+                                {
+                                    "icon": "⚡ yellow",
+                                    "label": "Investment Goal",
+                                    "progress": "62%",
+                                    "amounts": "$15,800 / $25,000"
+                                },
+                                {
+                                    "icon": "🛡 blue",
+                                    "label": "Emergency Fund",
+                                    "progress": "60%",
+                                    "amounts": "$12,000 / $20,000"
+                                }
+                            ],
+                            "action": "+ Deposit"
+                        }
+                    }
+                ]
+            }
+        },
+        "about_section": {
+            "layout": "two-column text block with metadata",
+            "background": "#0A0A0A",
+            "top_meta_row": {
+                "left": "// About Us /",
+                "center": "Clarity. Control. Confidence.",
+                "right_badge": "© 2026",
+                "right_subtitle": "Turn daily financial decisions into long term wealth with smarter tools.",
+                "font_size": "12px",
+                "color": "#666666",
+                "border_bottom": "1px solid #1E1E1E",
+                "padding_bottom": "16px",
+                "margin_bottom": "48px"
+            },
+            "heading": {
+                "text": "We simplify finance with **smart** tools that help you manage, **grow**, and control your money. Helping you manage money better with modern, intuitive financial solutions.",
+                "style": "Large editorial paragraph heading, ~40px",
+                "emphasized_words": [
+                    "smart",
+                    "grow"
+                ],
+                "emphasized_style": "bold white, rest is muted grey #666",
+                "max_width": "700px"
+            },
+            "logos_row": {
+                "label": "Trusted by teams at",
+                "logos": [
+                    "Adobe",
+                    "Framer",
+                    "Notion",
+                    "amazon",
+                    "slack",
+                    "pendo",
+                    "Trello"
+                ],
+                "logo_color": "#555555",
+                "logo_hover_color": "#FFFFFF",
+                "gap": "48px",
+                "margin_top": "48px"
+            }
+        },
+        "how_it_works_section": {
+            "badge": {
+                "text": "🚀 How it works",
+                "style": "same as hero badge"
+            },
+            "heading": {
+                "text_regular": "Simple Steps to",
+                "text_italic_serif": "Smarter Finance",
+                "font_size": "42px"
+            },
+            "subtext": "Automate your financial operations, track performance in real time, and make confident decisions backed by clear insights.",
+            "subtext_max_width": "360px",
+            "layout": "3-column card grid",
+            "gap": "24px",
+            "cards": [
+                {
+                    "id": "smart_wallet",
+                    "background": {
+                        "type": "image overlay",
+                        "description": "Dark atmospheric landscape (sunset/mountain), card UI element overlaid on top"
+                    },
+                    "overlay_card": {
+                        "title": "Finova Cash Main Balance",
+                        "balance": "$ 1,389.00",
+                        "account_number": "Neopay Number ●●●●●● 5324",
+                        "neo_points": "● 320 Points",
+                        "actions": [
+                            "Transfer →",
+                            "Withdraw ●"
+                        ]
+                    },
+                    "title": "Smart Wallet Overview",
+                    "description": "Track balance, rewards, and transfers in one secure place.",
+                    "border_radius": "16px",
+                    "height": "320px",
+                    "border": "1px solid #2A2A2A"
+                },
+                {
+                    "id": "financial_insights",
+                    "background": {
+                        "type": "image overlay",
+                        "description": "Dark landscape, statistics line chart on top"
+                    },
+                    "overlay_card": {
+                        "header": "Statistics | This Week ▾",
+                        "chart": "dual line chart — one gold line, one white line, wavy/flowing pattern"
+                    },
+                    "title": "Financial Performance Insights",
+                    "description": "Monitor trends and make smarter financial decisions.",
+                    "border_radius": "16px",
+                    "height": "320px",
+                    "border": "1px solid #2A2A2A"
+                },
+                {
+                    "id": "pricing_plans",
+                    "background": {
+                        "type": "image overlay",
+                        "description": "Dark atmospheric landscape"
+                    },
+                    "overlay_card": {
+                        "options": [
+                            {
+                                "dot_color": "#F5A623",
+                                "label": "Basic Package",
+                                "price": "$48.00",
+                                "desc": "PDF 20+ file full access to premium contact."
+                            },
+                            {
+                                "dot_color": "#555",
+                                "label": "VIP Package",
+                                "price": "$89.00",
+                                "desc": "PDF 40+ file full access to premium contact."
+                            }
+                        ],
+                        "cta": {
+                            "text": "Pay $98.00",
+                            "style": "white fill button, full width, border-radius 8px"
+                        }
+                    },
+                    "title": "Flexible Pricing Plans",
+                    "description": "Pick the right plan with clear, transparent pricing.",
+                    "border_radius": "16px",
+                    "height": "320px",
+                    "border": "1px solid #2A2A2A"
+                }
+            ]
+        },
+        "features_section": {
+            "layout": "2x2 asymmetric bento grid",
+            "background": "#0A0A0A",
+            "left_column": {
+                "badge": {
+                    "text": "🚀 Smart Finance"
+                },
+                "heading": {
+                    "text_regular": "Take Control of Your",
+                    "text_italic_serif": "Financial Future",
+                    "font_size": "42px"
+                },
+                "description": "An all-in-one platform to track, analyze, and optimize your financial performance in real time.",
+                "stats": [
+                    {
+                        "value": "50M+",
+                        "label": "Active Users"
+                    },
+                    {
+                        "value": "4.9",
+                        "label": "Average Rating"
+                    },
+                    {
+                        "value": "120+",
+                        "label": "Countries Served"
+                    }
+                ],
+                "stats_separator": "1px solid #2A2A2A vertical between items",
+                "cta": {
+                    "text": "Explore Features ↗",
+                    "style": "white outline button",
+                    "border": "1px solid #FFFFFF",
+                    "border_radius": "8px",
+                    "padding": "10px 20px"
+                }
+            },
+            "right_top": {
+                "type": "Analysis chart card",
+                "background": "rgba(20,20,20,0.95)",
+                "border_radius": "16px",
+                "border": "1px solid #2A2A2A",
+                "expand_icon": "↗ top right",
+                "content": {
+                    "title": "Analysis",
+                    "earnings_label": "Earnings",
+                    "earnings_value": "$98,343.23",
+                    "chart_type": "bar chart",
+                    "bars": [
+                        {
+                            "month": "Jan",
+                            "value": "$18k",
+                            "active": false
+                        },
+                        {
+                            "month": "Feb",
+                            "value": "$42k",
+                            "active": false
+                        },
+                        {
+                            "month": "Mar",
+                            "value": "$31k",
+                            "active": false
+                        },
+                        {
+                            "month": "Apr",
+                            "value": "$50k",
+                            "active": true,
+                            "color": "#F5A623"
+                        },
+                        {
+                            "month": "May",
+                            "value": "$38k",
+                            "active": false
+                        },
+                        {
+                            "month": "Jun",
+                            "value": "$52k",
+                            "active": false
+                        }
+                    ],
+                    "inactive_bar_color": "#2A2A2A",
+                    "active_bar_color": "#F5A623"
+                }
+            },
+            "left_bottom": {
+                "type": "Invoice/payment list card",
+                "background": "has atmospheric image background with dark overlay",
+                "border_radius": "16px",
+                "border": "1px solid #2A2A2A",
+                "content": {
+                    "items": [
+                        {
+                            "id": "INV384",
+                            "badge": "USD",
+                            "badge_color": "#1565C0",
+                            "flag": "🇺🇸",
+                            "country": "United States",
+                            "amount": "$1,500",
+                            "status": null
+                        },
+                        {
+                            "id": "INV385",
+                            "badge": "EUR",
+                            "badge_color": "#1565C0",
+                            "flag": "🇫🇷",
+                            "country": "France",
+                            "amount": "€1,200",
+                            "status": null
+                        },
+                        {
+                            "id": "INV386",
+                            "badge": "Pending",
+                            "badge_color": "#E65100",
+                            "flag": "🇬🇧",
+                            "country": "United Kingdom",
+                            "amount": "£900",
+                            "status": "Pending"
+                        },
+                        {
+                            "id": "INV386",
+                            "badge": "Completed",
+                            "badge_color": "#2E7D32",
+                            "flag": "🇨🇦",
+                            "country": "Canada",
+                            "amount": "$1,050",
+                            "status": "Completed"
+                        }
+                    ]
+                }
+            },
+            "right_bottom": {
+                "badge": {
+                    "text": "🚀 Financial Overview"
+                },
+                "heading": {
+                    "text_regular": "Built for Individuals",
+                    "text_italic_serif": "and Businesses",
+                    "font_size": "36px"
+                },
+                "underline_accent": "2px solid #F5A623 under heading, width ~40px",
+                "feature_list": [
+                    {
+                        "icon": "building/briefcase icon",
+                        "title": "Built for Individuals and Businesses",
+                        "description": "Whether you are managing personal budgets or handling business accounts, our tools adapt to your financial goals."
+                    },
+                    {
+                        "icon": "chart/graph icon",
+                        "title": "Real Time Financial Insights"
+                    },
+                    {
+                        "icon": "shield icon",
+                        "title": "Secure and Reliable Infrastructure"
+                    }
+                ],
+                "feature_icon_color": "#F5A623",
+                "feature_icon_size": "16px",
+                "feature_title_size": "14px",
+                "feature_title_weight": 600,
+                "feature_desc_size": "12px",
+                "feature_desc_color": "#666666",
+                "cta": {
+                    "text": "Explore More ↗",
+                    "style": "white outline button"
+                }
+            }
+        },
+        "pricing_section": {
+            "badge": {
+                "text": "🚀 Pricing Plan"
+            },
+            "heading": {
+                "text_regular": "Select the Plan That",
+                "text_italic_serif": "Fits Your Needs",
+                "font_size": "42px",
+                "text_align": "center"
+            },
+            "subtext": "An all-in-one platform to track, analyze, and optimize your financial performance in real time.",
+            "subtext_align": "center",
+            "layout": "2-column side by side cards",
+            "gap": "24px",
+            "max_width": "800px",
+            "cards": [
+                {
+                    "id": "starter",
+                    "name": "Starter Plan",
+                    "description": "Perfect for individuals managing personal finances.",
+                    "price": "$19",
+                    "price_period": "/month",
+                    "background": "#1A1A1A",
+                    "border": "1px solid #2A2A2A",
+                    "border_radius": "16px",
+                    "padding": "32px",
+                    "cta": {
+                        "text": "Get Started ↗",
+                        "background": "#1A1A1A",
+                        "color": "#FFFFFF",
+                        "border": "1px solid #333",
+                        "border_radius": "8px",
+                        "width": "100%",
+                        "padding": "14px",
+                        "hover_background": "#2A2A2A"
+                    },
+                    "features_label": "What's included:",
+                    "features": [
+                        "Track income and expenses",
+                        "Smart budget planning tools",
+                        "Basic financial reports",
+                        "Secure cloud data storage",
+                        "Email support"
+                    ],
+                    "feature_icon": "✓ checkmark, color #F5A623"
+                },
+                {
+                    "id": "pro",
+                    "name": "Pro Plan",
+                    "badge": {
+                        "text": "Best Value",
+                        "background": "#F5A623",
+                        "color": "#000000",
+                        "border_radius": "4px",
+                        "padding": "2px 8px",
+                        "font_size": "11px"
+                    },
+                    "description": "Advanced tools for professionals and growing teams.",
+                    "price_original": "$1,290",
+                    "price_original_style": "strikethrough, color #666",
+                    "price": "$399",
+                    "price_period": "/month",
+                    "price_note": "One-time payment",
+                    "background": "#1A1A1A",
+                    "border": "1px solid #2A2A2A",
+                    "border_radius": "16px",
+                    "padding": "32px",
+                    "cta": {
+                        "text": "Unlock Pro Features ↗",
+                        "background": "#FFFFFF",
+                        "color": "#000000",
+                        "border": "none",
+                        "border_radius": "8px",
+                        "width": "100%",
+                        "padding": "14px",
+                        "font_weight": 600,
+                        "hover_background": "#F0F0F0"
+                    },
+                    "features_label": "What's included:",
+                    "features": [
+                        "Everything in Starter",
+                        "Advanced financial analytics",
+                        "Automated expense categorization",
+                        "Multi-account management",
+                        "Export reports (PDF, CSV)",
+                        "Priority customer support"
+                    ],
+                    "feature_icon": "✓ checkmark, color #F5A623"
+                }
+            ]
+        },
+        "testimonials_section": {
+            "badge": {
+                "text": "🚀 Testimonials"
+            },
+            "heading": {
+                "text_regular": "Take Control of Your",
+                "text_italic_serif": "Financial Future",
+                "font_size": "42px",
+                "text_align": "center"
+            },
+            "subtext": "An all-in-one platform to track, analyze, and optimize your financial performance in real time.",
+            "layout": "single large testimonial with photo, carousel dots",
+            "active_card": {
+                "photo": {
+                    "description": "Man wearing olive/khaki jacket and beanie hat, smiling, outdoors, portrait orientation",
+                    "size": "240px x 240px",
+                    "border_radius": "12px",
+                    "position": "left side"
+                },
+                "quote_icon": {
+                    "character": "❝❝",
+                    "color": "#F5A623",
+                    "font_size": "36px",
+                    "position": "top left of quote area"
+                },
+                "quote_text": {
+                    "text_regular": "Everything I need to",
+                    "text_italic_serif": "manage my finances",
+                    "text_regular_2": "is in one place,",
+                    "text_italic_serif_2": "which saves me",
+                    "text_regular_3": "so much time.",
+                    "font_size": "28px",
+                    "style": "mixed serif italic / sans regular"
+                },
+                "attribution": "- John Carter",
+                "attribution_style": "serif italic, #FFFFFF, font_size 16px"
+            },
+            "navigation": {
+                "dots": "2 dots, active = yellow filled, inactive = grey",
+                "arrow_buttons": {
+                    "expand": "↗",
+                    "contract": "↙",
+                    "border": "1px solid #333",
+                    "size": "36px",
+                    "border_radius": "8px"
+                }
+            },
+            "next_slide_preview": {
+                "label": "Next Slide → Robert H.",
+                "photo_preview": "small thumbnail ~60px"
+            }
+        },
+        "faq_section": {
+            "badge": {
+                "text": "🚀 FAQ"
+            },
+            "heading": {
+                "text_regular": "Frequently Asked",
+                "text_italic_serif": "Questions",
+                "font_size": "42px"
+            },
+            "tabs": {
+                "items": [
+                    "General",
+                    "Implementation",
+                    "Security & Compliance",
+                    "Use Cases"
+                ],
+                "active_tab": "General",
+                "active_style": {
+                    "background": "#1A1A1A",
+                    "border": "1px solid #333",
+                    "border_radius": "8px",
+                    "color": "#FFFFFF"
+                },
+                "inactive_style": {
+                    "color": "#666",
+                    "background": "transparent"
+                },
+                "padding": "8px 16px",
+                "font_size": "13px"
+            },
+            "items": [
+                {
+                    "number": "{001}",
+                    "question": "What is this finance platform used for?",
+                    "state": "collapsed",
+                    "icon": "+"
+                },
+                {
+                    "number": "{002}",
+                    "question": "Can I connect multiple bank accounts?",
+                    "answer": "Yes, you can securely connect multiple bank accounts, cards, and financial sources to view and manage all your finances from a single dashboard.",
+                    "state": "expanded",
+                    "icon": "−",
+                    "tags": [
+                        "Bank cards",
+                        "Fintech",
+                        "Paypal",
+                        "Online Payment"
+                    ]
+                }
+            ],
+            "item_style": {
+                "border_bottom": "1px solid #1E1E1E",
+                "padding": "20px 0",
+                "number_color": "#444",
+                "number_font_size": "12px",
+                "question_font_size": "15px",
+                "question_color": "#FFFFFF",
+                "answer_font_size": "13px",
+                "answer_color": "#999",
+                "icon_color": "#FFFFFF",
+                "icon_size": "18px"
+            },
+            "tags_style": {
+                "background": "#1A1A1A",
+                "border": "1px solid #2A2A2A",
+                "border_radius": "20px",
+                "padding": "4px 12px",
+                "font_size": "11px",
+                "color": "#999"
+            }
+        },
+        "cta_section": {
+            "layout": "centered, full-width, with background image",
+            "background": {
+                "type": "image",
+                "description": "Same mountain landscape as hero but slightly different framing — darker, more silhouette visible, cloud layer prominent. Very cinematic.",
+                "overlay": "linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.5) 100%)"
+            },
+            "badge": {
+                "text": "🚀 Grow Faster"
+            },
+            "heading": {
+                "text_regular": "Own Your Financial Future",
+                "text_italic_serif": "with Confidence",
+                "font_size": "48px",
+                "text_align": "center"
+            },
+            "subtext": "Monitor your finances in real time, plan ahead with confidence, and build lasting wealth step by step.",
+            "cta": {
+                "text": "Get Started Free ↗",
+                "background": "#FFFFFF",
+                "color": "#000000",
+                "border_radius": "8px",
+                "padding": "14px 28px",
+                "font_size": "15px",
+                "font_weight": 600,
+                "hover_background": "#F0F0F0"
+            }
+        },
+        "footer": {
+            "background": "#0A0A0A",
+            "border_top": "1px solid #1E1E1E",
+            "layout": "multi-column",
+            "brand_column": {
+                "logo": {
+                    "icon": "🚀 yellow",
+                    "text": "Finova",
+                    "font_size": "18px",
+                    "font_weight": 600
+                },
+                "description": "Experience next-generation finance with powerful insights, automa.",
+                "description_color": "#666",
+                "description_font_size": "13px",
+                "social_icons": [
+                    "Facebook (f)",
+                    "Instagram",
+                    "Dribbble",
+                    "X (Twitter)"
+                ],
+                "social_icon_color": "#666",
+                "social_icon_hover_color": "#FFFFFF",
+                "social_icon_size": "18px",
+                "social_gap": "16px"
+            },
+            "link_columns": [
+                {
+                    "title": "Platform",
+                    "links": [
+                        "About Us",
+                        "Contact",
+                        "How It Works",
+                        "Blog"
+                    ]
+                },
+                {
+                    "title": "Resources",
+                    "links": [
+                        "Help Center",
+                        "Documentation",
+                        "API Access",
+                        "Community Forum"
+                    ]
+                },
+                {
+                    "title": "Company",
+                    "links": [
+                        "Terms",
+                        "Privacy Policy",
+                        "Trust Center"
+                    ]
+                }
+            ],
+            "column_title_style": {
+                "font_size": "13px",
+                "font_weight": 600,
+                "color": "#FFFFFF",
+                "margin_bottom": "16px"
+            },
+            "link_style": {
+                "font_size": "13px",
+                "color": "#666",
+                "hover_color": "#FFFFFF",
+                "line_height": "2"
+            },
+            "watermark": {
+                "text": "Finova",
+                "font_size": "120px",
+                "font_weight": 800,
+                "color": "rgba(255,255,255,0.04)",
+                "position": "bottom center",
+                "letter_spacing": "-0.03em",
+                "overflow": "hidden"
+            },
+            "bottom_bar": {
+                "text": "© 2026 Finova. All rights reserved.",
+                "color": "#444",
+                "font_size": "12px",
+                "text_align": "center",
+                "padding": "20px 0",
+                "border_top": "1px solid #1A1A1A"
+            }
+        }
+    },
+    "visual_effects": {
+        "shadows": {
+            "card": "0 4px 24px rgba(0,0,0,0.4)",
+            "card_hover": "0 8px 40px rgba(0,0,0,0.6)",
+            "button_primary": "0 2px 12px rgba(245,166,35,0.3)",
+            "nav": "0 1px 0 rgba(255,255,255,0.05)"
+        },
+        "border_radius": {
+            "card": "16px",
+            "card_sm": "12px",
+            "button": "8px",
+            "button_sm": "6px",
+            "badge": "20px",
+            "tag": "20px",
+            "input": "8px",
+            "avatar": "50%",
+            "modal": "20px"
+        },
+        "backdrop_filter": {
+            "nav": "blur(12px)",
+            "floating_card": "blur(8px)",
+            "modal": "blur(16px)"
+        },
+        "gradients": {
+            "hero_overlay": "linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.8) 100%)",
+            "card_image_overlay": "linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.7) 100%)",
+            "section_fade": "linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(10,10,10,1) 100%)"
+        },
+        "transitions": {
+            "default": "all 0.2s ease",
+            "hover": "all 0.15s ease-out",
+            "color": "color 0.2s ease, background-color 0.2s ease",
+            "transform": "transform 0.2s ease"
+        },
+        "hover_states": {
+            "button_scale": "scale(1.02)",
+            "card_translate": "translateY(-2px)",
+            "link_opacity": "opacity: 1 (from 0.7)"
+        }
+    },
+    "image_assets": {
+        "hero_background": {
+            "description": "Aerial mountain landscape at dusk. Dark sky at top, misty clouds in middle, dark mountain silhouettes. Very cinematic and moody. Warm orange-pink glow at horizon line.",
+            "usage": "Hero section and CTA section backgrounds",
+            "positioning": "cover, center"
+        },
+        "how_it_works_card_backgrounds": {
+            "description": "Dark atmospheric landscape photos (mountains/nature at dusk) used as backgrounds inside each of the 3 feature cards",
+            "style": "dark, moody, nature/landscape",
+            "overlay_opacity": 0.6
+        },
+        "testimonial_photo": {
+            "description": "Real person photo: young man in olive jacket and beanie hat, smiling warmly, outdoor background"
+        },
+        "testimonial_next_photo": {
+            "description": "Preview thumbnail of Robert H. — man in lighter jacket"
+        },
+        "country_flags": {
+            "usage": "Invoice list in features section",
+            "flags": [
+                "🇺🇸 US",
+                "🇫🇷 France",
+                "🇬🇧 UK",
+                "🇨🇦 Canada"
+            ],
+            "size": "20px circle"
+        }
+    },
+    "icon_system": {
+        "style": "outline/stroke icons",
+        "stroke_width": "1.5px",
+        "size_default": "16px",
+        "size_sm": "14px",
+        "size_lg": "20px",
+        "color_default": "#999999",
+        "color_active": "#FFFFFF",
+        "color_accent": "#F5A623",
+        "icons_used": [
+            "arrow-up-right (↗) — CTA buttons",
+            "search — transaction list header",
+            "more-horizontal (...) — card options",
+            "shield — security feature",
+            "bar-chart — analytics feature",
+            "building — business feature",
+            "expand/compress — testimonial navigation",
+            "plus (+) — FAQ collapsed",
+            "minus (−) — FAQ expanded",
+            "check (✓) — pricing feature list",
+            "transfer arrows — wallet card",
+            "eye toggle — balance visibility"
+        ]
+    },
+    "responsive_behavior": {
+        "mobile": {
+            "breakpoint": "< 768px",
+            "nav": "hamburger menu, links hidden, logo + hamburger visible",
+            "hero": "single column, centered, smaller font (36px h1), cards stack vertically",
+            "about": "single column, logos scroll horizontally",
+            "how_it_works": "single column cards, full width",
+            "features_bento": "single column stack",
+            "pricing": "single column cards",
+            "testimonials": "photo stacks above quote",
+            "footer": "single column, brand then links, watermark hidden"
+        },
+        "tablet": {
+            "breakpoint": "768px - 1024px",
+            "nav": "horizontal nav preserved, reduced spacing",
+            "features_bento": "2x2 grid with adjusted proportions",
+            "how_it_works": "2+1 or 3-col with smaller cards",
+            "pricing": "side by side maintained",
+            "hero": "slightly reduced font sizes"
+        },
+        "desktop": {
+            "breakpoint": "> 1024px",
+            "layout": "full design as specified above",
+            "max_width": "1200px centered"
+        }
+    },
+    "interactivity": {
+        "faq": {
+            "behavior": "accordion — click to expand/collapse, only one open at a time",
+            "animation": "height transition 0.3s ease, icon rotates from + to −"
+        },
+        "testimonials": {
+            "behavior": "carousel with dots and arrow navigation",
+            "transition": "fade or slide transition between testimonials"
+        },
+        "pricing": {
+            "toggle": "none visible — static two-plan layout"
+        },
+        "nav": {
+            "scroll_behavior": "background darkens/blurs on scroll",
+            "active_link": "white color vs grey default"
+        },
+        "cards": {
+            "hover": "slight translateY(-2px), box-shadow deepens"
+        },
+        "buttons": {
+            "states": [
+                "default",
+                "hover (scale + shadow)",
+                "active (scale down)",
+                "disabled (opacity 0.5)"
+            ]
+        },
+        "chart_bars": {
+            "hover": "tooltip showing exact value, non-active bars lighten slightly"
+        }
+    },
+    "content_data": {
+        "brand": "Finova",
+        "tagline": "Clarity. Control. Confidence.",
+        "hero_stats": [
+            {
+                "value": "50M+",
+                "label": "Active Users"
+            },
+            {
+                "value": "4.9",
+                "label": "Average Rating"
+            },
+            {
+                "value": "120+",
+                "label": "Countries Served"
+            }
+        ],
+        "nav_links": [
+            "Home",
+            "Features",
+            "Solutions",
+            "Analytics",
+            "Pricing"
+        ],
+        "trusted_brands": [
+            "Adobe",
+            "Framer",
+            "Notion",
+            "amazon",
+            "slack",
+            "pendo",
+            "Trello"
+        ],
+        "pricing_plans": {
+            "starter": {
+                "price": 19,
+                "period": "month"
+            },
+            "pro": {
+                "price": 399,
+                "period": "month",
+                "original_price": 1290,
+                "badge": "Best Value",
+                "note": "One-time payment"
+            }
+        },
+        "footer_links": {
+            "Platform": [
+                "About Us",
+                "Contact",
+                "How It Works",
+                "Blog"
+            ],
+            "Resources": [
+                "Help Center",
+                "Documentation",
+                "API Access",
+                "Community Forum"
+            ],
+            "Company": [
+                "Terms",
+                "Privacy Policy",
+                "Trust Center"
+            ]
+        },
+        "social_links": [
+            "Facebook",
+            "Instagram",
+            "Dribbble",
+            "X/Twitter"
+        ]
+    }
+}

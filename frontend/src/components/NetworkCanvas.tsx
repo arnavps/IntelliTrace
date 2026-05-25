@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
-import { Core, ElementDefinition, Stylesheet } from 'cytoscape';
+import type { Core, ElementDefinition, StylesheetStyle } from 'cytoscape';
 
 // We register layout extensions here if needed, e.g., fcose for better force-directed rendering.
 // import cytoscape from 'cytoscape';
@@ -13,7 +13,7 @@ interface NetworkCanvasProps {
 }
 
 export const NetworkCanvas: React.FC<NetworkCanvasProps> = ({ elements, bindCyInstance }) => {
-  const cyStylesheet: Stylesheet[] = useMemo(() => [
+  const cyStylesheet: StylesheetStyle[] = useMemo(() => [
     {
       selector: 'node',
       style: {
