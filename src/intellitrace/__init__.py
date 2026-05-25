@@ -31,6 +31,7 @@ from intellitrace.gnn import (
     InductiveEmbeddingService,
 )
 from intellitrace.risk_engine import XGBoostRiskEngine
+from intellitrace.anomaly_detector import UnsupervisedAnomalyDetector
 try:
     from intellitrace.streaming import (
         TransactionTimestampAssigner,
@@ -82,6 +83,6 @@ __all__ = [
     "SmurfingPatternSelectFunction",
     "LayeringEventDuplicator",
     "RapidLayeringAnalyzer",
-    "DormantActivationMonitor",
     "XGBoostRiskEngine",
+    "UnsupervisedAnomalyDetector",
 ]
