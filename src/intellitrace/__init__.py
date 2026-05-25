@@ -30,6 +30,7 @@ from intellitrace.gnn import (
     compute_semi_supervised_loss,
     InductiveEmbeddingService,
 )
+from intellitrace.risk_engine import XGBoostRiskEngine
 try:
     from intellitrace.streaming import (
         TransactionTimestampAssigner,
@@ -82,4 +83,5 @@ __all__ = [
     "LayeringEventDuplicator",
     "RapidLayeringAnalyzer",
     "DormantActivationMonitor",
+    "XGBoostRiskEngine",
 ]
