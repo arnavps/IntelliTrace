@@ -33,6 +33,7 @@ from intellitrace.gnn import (
 from intellitrace.risk_engine import XGBoostRiskEngine
 from intellitrace.anomaly_detector import UnsupervisedAnomalyDetector
 from intellitrace.explainability import SHAPExplainabilityEngine
+from intellitrace.drift_guard import ConceptDriftGuard
 try:
     from intellitrace.streaming import (
         TransactionTimestampAssigner,
@@ -86,4 +87,5 @@ __all__ = [
     "RapidLayeringAnalyzer",
     "UnsupervisedAnomalyDetector",
     "SHAPExplainabilityEngine",
+    "ConceptDriftGuard",
 ]
