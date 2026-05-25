@@ -35,6 +35,7 @@ from intellitrace.anomaly_detector import UnsupervisedAnomalyDetector
 from intellitrace.explainability import SHAPExplainabilityEngine
 from intellitrace.drift_guard import ConceptDriftGuard
 from intellitrace.pmla_mapper import PMLATypologyMapper
+from intellitrace.insider_threat import InsiderThreatFusionLayer
 try:
     from intellitrace.streaming import (
         TransactionTimestampAssigner,
@@ -90,4 +91,5 @@ __all__ = [
     "SHAPExplainabilityEngine",
     "ConceptDriftGuard",
     "PMLATypologyMapper",
+    "InsiderThreatFusionLayer",
 ]
