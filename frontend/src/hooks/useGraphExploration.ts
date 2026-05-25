@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Core, NodeSingular, CollectionReturnValue } from 'cytoscape';
+import type { Core, NodeSingular, CollectionReturnValue } from 'cytoscape';
 
 export type GraphMode = 'explore' | 'shortest-path' | 'community' | 'temporal';
 

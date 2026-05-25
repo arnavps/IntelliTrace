@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ElementDefinition } from 'cytoscape';
+import type { ElementDefinition } from 'cytoscape';
 import { NetworkCanvas } from './NetworkCanvas';
 import { useGraphExploration } from '../hooks/useGraphExploration';
 import { 

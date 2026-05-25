@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
-import { Core, ElementDefinition, Stylesheet } from 'cytoscape';
+import type { Core, ElementDefinition, Stylesheet } from 'cytoscape';
 
 // We register layout extensions here if needed, e.g., fcose for better force-directed rendering.
 // import cytoscape from 'cytoscape';
