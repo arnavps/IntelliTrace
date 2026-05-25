@@ -34,6 +34,7 @@ from intellitrace.risk_engine import XGBoostRiskEngine
 from intellitrace.anomaly_detector import UnsupervisedAnomalyDetector
 from intellitrace.explainability import SHAPExplainabilityEngine
 from intellitrace.drift_guard import ConceptDriftGuard
+from intellitrace.pmla_mapper import PMLATypologyMapper
 try:
     from intellitrace.streaming import (
         TransactionTimestampAssigner,
@@ -88,4 +89,5 @@ __all__ = [
     "UnsupervisedAnomalyDetector",
     "SHAPExplainabilityEngine",
     "ConceptDriftGuard",
+    "PMLATypologyMapper",
 ]
