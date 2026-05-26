@@ -1,68 +1,39 @@
-import { useState } from 'react'
-import { FinancialCrimeDashboard } from './components/FinancialCrimeDashboard'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AppLayout } from './intellitrace/Layout/AppLayout'
+import { DashboardPage } from './intellitrace/pages/DashboardPage'
+import { TransactionsPage } from './intellitrace/pages/TransactionsPage'
+import { GraphExplorerPage } from './intellitrace/pages/GraphExplorerPage'
+import { AlertsPage } from './intellitrace/pages/AlertsPage'
+import { AlertDetailPage } from './intellitrace/pages/AlertDetailPage'
+import { CaseManagementPage } from './intellitrace/pages/CaseManagementPage'
+import EntityProfilePage from './intellitrace/pages/EntityProfilePage'
+import ReportsPage from './intellitrace/pages/ReportsPage'
+import { AdminPage } from './intellitrace/pages/AdminPage'
 import { IntelliTraceApp } from './finova/FinovaApp'
 
-function App() {
-  const [showDashboard, setShowDashboard] = useState(false)
-
-  if (showDashboard) {
-    return (
-      <>
-        <FinancialCrimeDashboard />
-        <button
-          onClick={() => setShowDashboard(false)}
-          style={{
-            position: 'fixed',
-            top: '12px',
-            right: '12px',
-            zIndex: 9999,
-            background: 'rgba(245,166,35,0.9)',
-            color: '#000',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 14px',
-            fontSize: '12px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            backdropFilter: 'blur(8px)',
-          }}
-        >
-          ← Finova Site
-        </button>
-      </>
-    )
-  }
-
+export default function App() {
   return (
-    <>
-      <IntelliTraceApp />
-      <button
-        onClick={() => setShowDashboard(true)}
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          zIndex: 9999,
-          background: 'rgba(245,166,35,0.9)',
-          color: '#000',
-          border: 'none',
-          borderRadius: '10px',
-          padding: '10px 18px',
-          fontSize: '12px',
-          fontWeight: 600,
-          cursor: 'pointer',
-          backdropFilter: 'blur(8px)',
-          boxShadow: '0 4px 16px rgba(245,166,35,0.4)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}
-        title="Open IntelliTrace Dashboard"
-      >
-        🔍 IntelliTrace Dashboard
-      </button>
-    </>
+    <BrowserRouter>
+      <Routes>
+        {/* Main landing site (Finova) */}
+        <Route path="/" element={<IntelliTraceApp />} />
+        
+        {/* Authenticated app shell */}
+        <Route element={<AppLayout />}>
+          <Route path="/dashboard"    element={<DashboardPage />} />
+          <Route path="/transactions" element={<TransactionsPage />} />
+          <Route path="/graph"        element={<GraphExplorerPage />} />
+          <Route path="/alerts"       element={<AlertsPage />} />
+          <Route path="/alerts/:alertId" element={<AlertDetailPage />} />
+          <Route path="/cases"        element={<CaseManagementPage />} />
+          <Route path="/entity/:entityId" element={<EntityProfilePage />} />
+          <Route path="/reports"      element={<ReportsPage />} />
+          <Route path="/admin"        element={<AdminPage />} />
+        </Route>
+
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
-
-export default App

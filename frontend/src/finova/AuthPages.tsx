@@ -1,12 +1,13 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 export function LoginPage({ onNavigate }: { onNavigate: (p: string) => void }) {
   const [form, setForm] = useState({ email: '', password: '' })
+  const navigate = useNavigate()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // placeholder
-    onNavigate('Home')
+    navigate('/dashboard')
   }
 
   return (
@@ -85,11 +86,12 @@ export function LoginPage({ onNavigate }: { onNavigate: (p: string) => void }) {
 export function SignupPage({ onNavigate }: { onNavigate: (p: string) => void }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', plan: 'starter' })
   const [step, setStep] = useState(1)
+  const navigate = useNavigate()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (step === 1) setStep(2)
-    else onNavigate('Home')
+    else navigate('/dashboard')
   }
 
   return (
