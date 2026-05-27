@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Plus,
@@ -25,11 +25,12 @@ import {
   X,
 } from 'lucide-react';
 import '../styles/dashboard.css';
+import { useApi, apiPost, apiPatch, getUser } from '../../hooks/useApi';
 
 /* ─── Types ─────────────────────────────────────────── */
 type CaseStatus = 'Open' | 'In Progress' | 'Under Review' | 'Closed';
 type CasePriority = 'Critical' | 'High' | 'Medium' | 'Low';
-type CaseType = 'Money Laundering' | 'Fraud' | 'Insider Threat' | 'Synthetic ID';
+type CaseType = 'Money Laundering' | 'Fraud' | 'Insider Threat' | 'Synthetic ID' | string;
 
 interface CaseNote {
   author: string;
@@ -54,241 +55,61 @@ interface Case {
   created: string;
   updated: string;
   description: string;
-  relatedAlert?: string;
+  related_alert_id?: string;
+  // Populated only when fetching case detail
+  notes?: CaseNote[];
+  evidence?: CaseEvidence[];
+}
+
+interface CaseDetail extends Case {
   notes: CaseNote[];
   evidence: CaseEvidence[];
 }
 
-/* ─── Mock Data ─────────────────────────────────────── */
-const MOCK_CASES: Case[] = [
-  {
-    id: 'CSE-0091',
-    title: 'Rakesh Mehta Syndicate — Layering Network',
-    type: 'Money Laundering',
-    assignee: 'Priya Sharma',
-    priority: 'Critical',
-    status: 'In Progress',
-    created: '2026-05-24',
-    updated: '2026-05-26',
-    relatedAlert: 'ALT-4821',
-    description: 'Coordinated layering operation involving 7 accounts routed through Shell Corp Alpha. GraphSAGE confirmed syndicate membership. Total exposure: ₹3.2Cr over 14 days.',
-    notes: [
-      { author: 'Priya Sharma', time: '10:22 AM', text: 'Contacted HDFC compliance desk. Waiting for transaction trail documents.' },
-      { author: 'Rohan Verma', time: '11:05 AM', text: 'STR draft completed, pending L2 approval before FIU submission.' },
-      { author: 'System', time: '11:30 AM', text: 'Auto-linked 3 additional alerts matching community fingerprint Syndicate-7.' },
-    ],
-    evidence: [
-      { name: 'transaction_trail_ACC4821.pdf', type: 'PDF', size: '2.4 MB', addedBy: 'Priya Sharma' },
-      { name: 'graph_export_syndicate7.json', type: 'JSON', size: '512 KB', addedBy: 'System' },
-      { name: 'kyc_documents_rakesh.zip', type: 'ZIP', size: '8.1 MB', addedBy: 'Compliance Desk' },
-    ],
-  },
-  {
-    id: 'CSE-0088',
-    title: 'ATM Skimming Ring — Western Mumbai',
-    type: 'Fraud',
-    assignee: 'Arjun Nair',
-    priority: 'High',
-    status: 'Under Review',
-    created: '2026-05-22',
-    updated: '2026-05-25',
-    relatedAlert: 'ALT-4790',
-    description: 'Suspected ATM skimming operation affecting 34 customers across 6 branches. Card cloning confirmed by forensics team.',
-    notes: [
-      { author: 'Arjun Nair', time: '09:15 AM', text: 'Forensic team confirmed card cloning hardware at 2 ATM locations.' },
-      { author: 'Kavya Reddy', time: '02:30 PM', text: 'Coordinating with local cybercrime cell for suspect identification.' },
-    ],
-    evidence: [
-      { name: 'atm_cctv_footage_ref.mp4', type: 'MP4', size: '124 MB', addedBy: 'Branch Manager' },
-      { name: 'affected_cards_list.xlsx', type: 'XLSX', size: '340 KB', addedBy: 'Arjun Nair' },
-    ],
-  },
-  {
-    id: 'CSE-0085',
-    title: 'Synthetic Identity Fraud — Loan Portfolio',
-    type: 'Synthetic ID',
-    assignee: 'Meera Joshi',
-    priority: 'High',
-    status: 'Open',
-    created: '2026-05-21',
-    updated: '2026-05-21',
-    description: 'AI detected 12 loan accounts with synthetic identity patterns — constructed identities using leaked PAN data combined with fabricated address proofs.',
-    notes: [
-      { author: 'Meera Joshi', time: '03:00 PM', text: 'Initiated KYC re-verification workflow for all 12 flagged accounts.' },
-    ],
-    evidence: [
-      { name: 'synthetic_id_report_q2.pdf', type: 'PDF', size: '1.8 MB', addedBy: 'Meera Joshi' },
-    ],
-  },
-  {
-    id: 'CSE-0083',
-    title: 'Insider Trading — Equities Desk Employee',
-    type: 'Insider Threat',
-    assignee: 'Rohan Verma',
-    priority: 'Critical',
-    status: 'Under Review',
-    created: '2026-05-20',
-    updated: '2026-05-24',
-    description: 'Senior equities analyst flagged for trading on non-public information. Trades placed 48 hours before merger announcement with 340% abnormal returns.',
-    notes: [
-      { author: 'Rohan Verma', time: '10:00 AM', text: 'HR and Legal team notified. Access to trading terminals suspended pending investigation.' },
-    ],
-    evidence: [
-      { name: 'trade_log_employee_9921.csv', type: 'CSV', size: '44 KB', addedBy: 'System' },
-    ],
-  },
-  {
-    id: 'CSE-0081',
-    title: 'Trade-Based Money Laundering — Export Invoices',
-    type: 'Money Laundering',
-    assignee: 'Kavya Reddy',
-    priority: 'High',
-    status: 'In Progress',
-    created: '2026-05-19',
-    updated: '2026-05-23',
-    description: 'Over-invoiced export transactions used to launder approximately ₹12Cr through fictitious trade with UAE-based shell entities.',
-    notes: [
-      { author: 'Kavya Reddy', time: '11:45 AM', text: 'Requested DGFT records and shipping manifests for cross-verification.' },
-    ],
-    evidence: [
-      { name: 'invoice_discrepancy_analysis.xlsx', type: 'XLSX', size: '890 KB', addedBy: 'Kavya Reddy' },
-    ],
-  },
-  {
-    id: 'CSE-0079',
-    title: 'Crypto-to-Fiat Conversion Ring',
-    type: 'Money Laundering',
-    assignee: 'Priya Sharma',
-    priority: 'Medium',
-    status: 'Open',
-    created: '2026-05-18',
-    updated: '2026-05-18',
-    description: 'Multiple accounts identified converting large crypto holdings to fiat through P2P exchanges without reporting. Estimated volume: ₹8Cr.',
-    notes: [],
-    evidence: [],
-  },
-  {
-    id: 'CSE-0075',
-    title: 'BEC Fraud — Corporate Treasury Account',
-    type: 'Fraud',
-    assignee: 'Arjun Nair',
-    priority: 'High',
-    status: 'Closed',
-    created: '2026-05-15',
-    updated: '2026-05-22',
-    description: 'Business Email Compromise attack resulted in ₹2.4Cr unauthorized transfer. Funds partially recovered through SWIFT recall.',
-    notes: [
-      { author: 'Arjun Nair', time: '04:00 PM', text: 'Case closed. ₹1.8Cr recovered. Remaining ₹60L written off. Cybercrime FIR filed.' },
-    ],
-    evidence: [
-      { name: 'bec_forensic_report_final.pdf', type: 'PDF', size: '3.2 MB', addedBy: 'Arjun Nair' },
-    ],
-  },
-  {
-    id: 'CSE-0072',
-    title: 'Smurfing — Cross-Branch Cash Deposits',
-    type: 'Money Laundering',
-    assignee: 'Meera Joshi',
-    priority: 'Medium',
-    status: 'Closed',
-    created: '2026-05-12',
-    updated: '2026-05-20',
-    description: 'Structured cash deposits of ₹48,000–₹49,500 across 18 branches by related parties. Total: ₹4.2Cr in 3 weeks.',
-    notes: [],
-    evidence: [],
-  },
-  {
-    id: 'CSE-0069',
-    title: 'Phishing Campaign — Retail Banking Customers',
-    type: 'Fraud',
-    assignee: 'Rohan Verma',
-    priority: 'Medium',
-    status: 'Closed',
-    created: '2026-05-10',
-    updated: '2026-05-18',
-    description: 'Coordinated phishing attack targeting retail customers. 89 accounts compromised. Total loss: ₹34L.',
-    notes: [],
-    evidence: [],
-  },
-  {
-    id: 'CSE-0066',
-    title: 'Ghost Employee Payroll Fraud',
-    type: 'Insider Threat',
-    assignee: 'Kavya Reddy',
-    priority: 'Low',
-    status: 'Closed',
-    created: '2026-05-08',
-    updated: '2026-05-16',
-    description: 'HR manager created 6 fictitious employee records and diverted payroll totaling ₹18L over 4 months.',
-    notes: [],
-    evidence: [],
-  },
-  {
-    id: 'CSE-0063',
-    title: 'Real Estate Money Laundering — Property Purchases',
-    type: 'Money Laundering',
-    assignee: 'Priya Sharma',
-    priority: 'Low',
-    status: 'Closed',
-    created: '2026-05-05',
-    updated: '2026-05-14',
-    description: 'Series of high-value property transactions used for placement of illicit funds. 4 properties identified, total value ₹9.8Cr.',
-    notes: [],
-    evidence: [],
-  },
-  {
-    id: 'CSE-0059',
-    title: 'Ponzi Scheme — Investment Club',
-    type: 'Fraud',
-    assignee: 'Arjun Nair',
-    priority: 'Low',
-    status: 'Closed',
-    created: '2026-04-28',
-    updated: '2026-05-10',
-    description: 'Investment club operating Ponzi scheme across 240 victims. Total defrauded amount: ₹1.4Cr. Case referred to EOW.',
-    notes: [],
-    evidence: [],
-  },
-];
+interface CasesStats {
+  Open: number;
+  'In Progress': number;
+  'Under Review': number;
+  Closed: number;
+}
 
-const STATS = [
-  { label: 'Open Cases', value: 8, icon: <FolderOpen size={18} />, color: '#60A5FA', bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.2)' },
-  { label: 'In Progress', value: 5, icon: <Loader size={18} />, color: '#F5A623', bg: 'rgba(245,166,35,0.1)', border: 'rgba(245,166,35,0.2)' },
-  { label: 'Under Review', value: 3, icon: <Eye size={18} />, color: '#A78BFA', bg: 'rgba(139,92,246,0.1)', border: 'rgba(139,92,246,0.2)' },
-  { label: 'Closed', value: 47, icon: <CheckCircle size={18} />, color: '#4ADE80', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.2)' },
-];
+interface CasesResponse {
+  cases: Case[];
+  stats: CasesStats;
+}
 
+/* ─── Constants ─────────────────────────────────────── */
 const ASSIGNEES = ['Priya Sharma', 'Arjun Nair', 'Meera Joshi', 'Rohan Verma', 'Kavya Reddy'];
 
 /* ─── Helper: badge class by status ─────────────────── */
-function statusBadge(s: CaseStatus) {
-  const map: Record<CaseStatus, string> = {
+function statusBadge(s: string) {
+  const map: Record<string, string> = {
     'Open': 'it-badge-open',
     'In Progress': 'it-badge-progress',
     'Under Review': 'it-badge-review',
     'Closed': 'it-badge-closed',
   };
-  return `it-badge ${map[s]}`;
+  return `it-badge ${map[s] ?? 'it-badge-neutral'}`;
 }
 
-function priorityBadge(p: CasePriority) {
-  const map: Record<CasePriority, string> = {
+function priorityBadge(p: string) {
+  const map: Record<string, string> = {
     Critical: 'it-badge-critical',
     High: 'it-badge-high',
     Medium: 'it-badge-medium',
     Low: 'it-badge-low',
   };
-  return `it-badge ${map[p]}`;
+  return `it-badge ${map[p] ?? 'it-badge-neutral'}`;
 }
 
-function typeColor(t: CaseType): string {
-  const map: Record<CaseType, string> = {
+function typeColor(t: string): string {
+  const map: Record<string, string> = {
     'Money Laundering': '#F87171',
     'Fraud': '#FB923C',
     'Insider Threat': '#A78BFA',
     'Synthetic ID': '#FDE047',
   };
-  return map[t];
+  return map[t] ?? '#60A5FA';
 }
 
 const KANBAN_COLS: { title: string; status: CaseStatus; badge: string }[] = [
@@ -299,24 +120,46 @@ const KANBAN_COLS: { title: string; status: CaseStatus; badge: string }[] = [
 ];
 
 /* ─── Create Case Modal ──────────────────────────────── */
-function CreateCaseModal({ onClose, onCreate }: {
+interface CreateCaseModalProps {
   onClose: () => void;
-  onCreate: (c: Omit<Case, 'id' | 'created' | 'updated' | 'notes' | 'evidence'>) => void;
-}) {
+  onCreated: () => void;
+}
+
+function CreateCaseModal({ onClose, onCreated }: CreateCaseModalProps) {
   const [form, setForm] = useState({
     title: '',
     type: 'Money Laundering' as CaseType,
     priority: 'High' as CasePriority,
     assignee: 'Priya Sharma',
     description: '',
-    relatedAlert: '',
+    related_alert_id: '',
     status: 'Open' as CaseStatus,
   });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim()) return;
-    onCreate(form);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await apiPost('/api/cases', {
+        title: form.title,
+        type: form.type,
+        assignee: form.assignee,
+        priority: form.priority,
+        status: form.status,
+        description: form.description,
+        related_alert_id: form.related_alert_id || undefined,
+      });
+      onCreated();
+      onClose();
+    } catch (err: unknown) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to create case');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -409,17 +252,21 @@ function CreateCaseModal({ onClose, onCreate }: {
             <input
               className="it-input"
               placeholder="e.g. ALT-4821"
-              value={form.relatedAlert}
-              onChange={e => setForm(f => ({ ...f, relatedAlert: e.target.value }))}
+              value={form.related_alert_id}
+              onChange={e => setForm(f => ({ ...f, related_alert_id: e.target.value }))}
             />
           </div>
+
+          {submitError && (
+            <div style={{ color: '#F87171', fontSize: 12, marginBottom: 8 }}>{submitError}</div>
+          )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 8 }}>
             <button type="button" className="it-btn it-btn-outline" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="it-btn it-btn-primary">
-              <Folder size={15} /> Create Case
+            <button type="submit" className="it-btn it-btn-primary" disabled={submitting}>
+              <Folder size={15} /> {submitting ? 'Creating…' : 'Create Case'}
             </button>
           </div>
         </form>
@@ -429,24 +276,83 @@ function CreateCaseModal({ onClose, onCreate }: {
 }
 
 /* ─── Case Detail Drawer ─────────────────────────────── */
-function CaseDrawer({ caseItem, onClose, onUpdate }: {
-  caseItem: Case;
+interface CaseDrawerProps {
+  caseId: string;
   onClose: () => void;
-  onUpdate: (id: string, updates: Partial<Case>) => void;
-}) {
-  const [newNote, setNewNote] = useState('');
-  const navigate = useNavigate();
+  onCaseUpdated: () => void;
+}
 
-  function addNote() {
+function CaseDrawer({ caseId, onClose, onCaseUpdated }: CaseDrawerProps) {
+  const navigate = useNavigate();
+  const [newNote, setNewNote] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const { data: caseDetail, loading, error, refetch } = useApi<CaseDetail>(`/api/cases/${caseId}`, [caseId]);
+
+  const handleAddNote = useCallback(async () => {
     if (!newNote.trim()) return;
-    const note: CaseNote = {
-      author: 'You (Current User)',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text: newNote.trim(),
-    };
-    onUpdate(caseItem.id, { notes: [...caseItem.notes, note] });
-    setNewNote('');
+    const user = getUser();
+    const author = user?.name ?? user?.username ?? 'Analyst';
+    setAddingNote(true);
+    try {
+      await apiPost(`/api/cases/${caseId}/notes`, { author, text: newNote.trim() });
+      setNewNote('');
+      refetch();
+    } catch {
+      // silently fail — note still clears
+    } finally {
+      setAddingNote(false);
+    }
+  }, [newNote, caseId, refetch]);
+
+  const handleStatusChange = useCallback(async (newStatus: string) => {
+    setUpdatingStatus(true);
+    try {
+      await apiPatch(`/api/cases/${caseId}`, { status: newStatus });
+      refetch();
+      onCaseUpdated();
+    } catch {
+      // ignore
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }, [caseId, refetch, onCaseUpdated]);
+
+  const handleCloseCase = useCallback(async () => {
+    await handleStatusChange('Closed');
+  }, [handleStatusChange]);
+
+  if (loading) {
+    return (
+      <div style={{
+        position: 'fixed', bottom: 0, left: 240, right: 0, zIndex: 500,
+        background: 'var(--bg-card)', borderTop: '1px solid var(--border)',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.6)', height: 80,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+      }}>
+        <Loader size={18} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent)' }} />
+        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading case details…</span>
+      </div>
+    );
   }
+
+  if (error || !caseDetail) {
+    return (
+      <div style={{
+        position: 'fixed', bottom: 0, left: 240, right: 0, zIndex: 500,
+        background: 'var(--bg-card)', borderTop: '1px solid var(--border)',
+        boxShadow: '0 -8px 40px rgba(0,0,0,0.6)', height: 80,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+      }}>
+        <span style={{ fontSize: 13, color: '#F87171' }}>Failed to load case: {error}</span>
+        <button className="it-btn it-btn-ghost it-btn-sm" onClick={onClose}><X size={14} /></button>
+      </div>
+    );
+  }
+
+  const notes = caseDetail.notes ?? [];
+  const evidence = caseDetail.evidence ?? [];
 
   return (
     <div style={{
@@ -476,21 +382,21 @@ function CaseDrawer({ caseItem, onClose, onUpdate }: {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                {caseItem.id}
+                {caseDetail.id}
               </span>
-              <span className={priorityBadge(caseItem.priority)}>{caseItem.priority}</span>
-              <span className={statusBadge(caseItem.status)}>{caseItem.status}</span>
+              <span className={priorityBadge(caseDetail.priority)}>{caseDetail.priority}</span>
+              <span className={statusBadge(caseDetail.status)}>{caseDetail.status}</span>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{caseItem.title}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{caseDetail.title}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          {caseItem.relatedAlert && (
+          {caseDetail.related_alert_id && (
             <button
               className="it-btn it-btn-outline it-btn-sm"
-              onClick={() => navigate(`/alerts/${caseItem.relatedAlert}`)}
+              onClick={() => navigate(`/alerts/${caseDetail.related_alert_id}`)}
             >
-              View Alert {caseItem.relatedAlert}
+              View Alert {caseDetail.related_alert_id}
             </button>
           )}
           <button className="it-btn it-btn-ghost it-btn-sm" onClick={onClose} style={{ padding: '6px' }}>
@@ -511,15 +417,15 @@ function CaseDrawer({ caseItem, onClose, onUpdate }: {
               Description
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-              {caseItem.description || 'No description provided.'}
+              {caseDetail.description || 'No description provided.'}
             </p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {[
-              { label: 'Investigator', value: caseItem.assignee, icon: <User size={12} /> },
-              { label: 'Case Type', value: caseItem.type, icon: <Tag size={12} /> },
-              { label: 'Created', value: caseItem.created, icon: <Clock size={12} /> },
-              { label: 'Last Updated', value: caseItem.updated, icon: <Clock size={12} /> },
+              { label: 'Investigator', value: caseDetail.assignee, icon: <User size={12} /> },
+              { label: 'Case Type', value: caseDetail.type, icon: <Tag size={12} /> },
+              { label: 'Created', value: caseDetail.created, icon: <Clock size={12} /> },
+              { label: 'Last Updated', value: caseDetail.updated, icon: <Clock size={12} /> },
             ].map(item => (
               <div key={item.label} style={{
                 background: 'var(--bg-card-el)', borderRadius: 8, padding: '10px 12px',
@@ -536,12 +442,12 @@ function CaseDrawer({ caseItem, onClose, onUpdate }: {
           {/* Evidence */}
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-              Evidence Files ({caseItem.evidence.length})
+              Evidence Files ({evidence.length})
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {caseItem.evidence.length === 0 ? (
+              {evidence.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No evidence attached yet.</div>
-              ) : caseItem.evidence.map((ev, i) => (
+              ) : evidence.map((ev, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   background: 'var(--bg-card-el)', borderRadius: 8, padding: '8px 12px',
@@ -581,13 +487,14 @@ function CaseDrawer({ caseItem, onClose, onUpdate }: {
             <button className="it-btn it-btn-outline it-btn-sm" style={{ justifyContent: 'flex-start', width: '100%' }}>
               <Download size={13} /> Export Report
             </button>
-            {caseItem.status !== 'Closed' && (
+            {caseDetail.status !== 'Closed' && (
               <button
                 className="it-btn it-btn-sm"
                 style={{ justifyContent: 'flex-start', width: '100%', background: 'rgba(239,68,68,0.1)', color: '#F87171', borderColor: 'rgba(239,68,68,0.3)' }}
-                onClick={() => onUpdate(caseItem.id, { status: 'Closed' })}
+                onClick={handleCloseCase}
+                disabled={updatingStatus}
               >
-                <XCircle size={13} /> Close Case
+                <XCircle size={13} /> {updatingStatus ? 'Closing…' : 'Close Case'}
               </button>
             )}
           </div>
@@ -598,9 +505,10 @@ function CaseDrawer({ caseItem, onClose, onUpdate }: {
             </div>
             <select
               className="it-input it-select"
-              value={caseItem.status}
-              onChange={e => onUpdate(caseItem.id, { status: e.target.value as CaseStatus })}
+              value={caseDetail.status}
+              onChange={e => handleStatusChange(e.target.value)}
               style={{ fontSize: 12, height: 36 }}
+              disabled={updatingStatus}
             >
               <option>Open</option>
               <option>In Progress</option>
@@ -613,12 +521,12 @@ function CaseDrawer({ caseItem, onClose, onUpdate }: {
         {/* Right: Notes */}
         <div style={{ display: 'flex', flexDirection: 'column', padding: '16px 20px', overflow: 'hidden' }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12, flexShrink: 0 }}>
-            Investigation Notes ({caseItem.notes.length})
+            Investigation Notes ({notes.length})
           </div>
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
-            {caseItem.notes.length === 0 ? (
+            {notes.length === 0 ? (
               <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>No notes yet. Add the first note below.</div>
-            ) : caseItem.notes.map((note, i) => (
+            ) : notes.map((note, i) => (
               <div key={i} style={{
                 background: 'var(--bg-card-el)', borderRadius: 8, padding: '10px 12px',
                 border: '1px solid var(--border)',
@@ -640,13 +548,13 @@ function CaseDrawer({ caseItem, onClose, onUpdate }: {
               placeholder="Add investigation note..."
               value={newNote}
               onChange={e => setNewNote(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addNote(); } }}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddNote(); } }}
               style={{ resize: 'none', flex: 1, fontSize: 12 }}
             />
             <button
               className="it-btn it-btn-primary it-btn-sm"
-              onClick={addNote}
-              disabled={!newNote.trim()}
+              onClick={handleAddNote}
+              disabled={!newNote.trim() || addingNote}
               style={{ alignSelf: 'flex-end', padding: '10px 12px' }}
             >
               <Send size={14} />
@@ -694,12 +602,6 @@ function KanbanView({ cases, onSelectCase }: { cases: Case[]; onSelectCase: (c: 
                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.assignee.split(' ')[0]}</span>
                     <span style={{ fontSize: 10, color: typeColor(c.type), fontWeight: 600 }}>{c.type}</span>
                   </div>
-                  {c.notes.length > 0 && (
-                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <MessageSquare size={10} style={{ color: 'var(--text-muted)' }} />
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{c.notes.length} notes</span>
-                    </div>
-                  )}
                 </div>
               ))}
               {colCases.length === 0 && (
@@ -721,46 +623,43 @@ function KanbanView({ cases, onSelectCase }: { cases: Case[]; onSelectCase: (c: 
 
 /* ─── Main Page ─────────────────────────────────────── */
 export function CaseManagementPage() {
-  const [cases, setCases] = useState<Case[]>(MOCK_CASES);
   const [view, setView] = useState<'table' | 'kanban'>('table');
   const [showModal, setShowModal] = useState(false);
-  const [selectedCase, setSelectedCase] = useState<Case | null>(null);
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [filterPriority, setFilterPriority] = useState<string>('All');
-  const [sortField] = useState<'updated' | 'created'>('updated');
+  // Trigger a refetch by incrementing this counter
+  const [fetchRevision, setFetchRevision] = useState(0);
 
-  function handleCreate(data: Omit<Case, 'id' | 'created' | 'updated' | 'notes' | 'evidence'>) {
-    const id = `CSE-${String(Math.floor(Math.random() * 9000) + 1000)}`;
-    const today = new Date().toISOString().split('T')[0];
-    const newCase: Case = { ...data, id, created: today, updated: today, notes: [], evidence: [] };
-    setCases(prev => [newCase, ...prev]);
-    setShowModal(false);
-  }
+  const params = new URLSearchParams({
+    search,
+    status: filterStatus,
+    priority: filterPriority,
+  });
+  const { data, loading } = useApi<CasesResponse>(`/api/cases?${params.toString()}`, [
+    search, filterStatus, filterPriority, fetchRevision,
+  ]);
 
-  function handleUpdate(id: string, updates: Partial<Case>) {
-    setCases(prev => prev.map(c => c.id === id ? { ...c, ...updates, updated: new Date().toISOString().split('T')[0] } : c));
-    if (selectedCase?.id === id) {
-      setSelectedCase(prev => prev ? { ...prev, ...updates } : null);
-    }
-  }
+  const cases = data?.cases ?? [];
+  const stats = data?.stats ?? { Open: 0, 'In Progress': 0, 'Under Review': 0, Closed: 0 };
 
-  const filtered = cases
-    .filter(c => {
-      if (search && !c.title.toLowerCase().includes(search.toLowerCase()) &&
-        !c.id.toLowerCase().includes(search.toLowerCase()) &&
-        !c.assignee.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterStatus !== 'All' && c.status !== filterStatus) return false;
-      if (filterPriority !== 'All' && c.priority !== filterPriority) return false;
-      return true;
-    })
-    .sort((a, b) => b[sortField].localeCompare(a[sortField]));
+  const refetchCases = useCallback(() => {
+    setFetchRevision(v => v + 1);
+  }, []);
+
+  const STATS_CONFIG = [
+    { label: 'Open Cases',   key: 'Open' as keyof CasesStats,          icon: <FolderOpen size={18} />,   color: '#60A5FA', bg: 'rgba(59,130,246,0.1)',   border: 'rgba(59,130,246,0.2)' },
+    { label: 'In Progress',  key: 'In Progress' as keyof CasesStats,    icon: <Loader size={18} />,       color: '#F5A623', bg: 'rgba(245,166,35,0.1)',   border: 'rgba(245,166,35,0.2)' },
+    { label: 'Under Review', key: 'Under Review' as keyof CasesStats,   icon: <Eye size={18} />,          color: '#A78BFA', bg: 'rgba(139,92,246,0.1)',   border: 'rgba(139,92,246,0.2)' },
+    { label: 'Closed',       key: 'Closed' as keyof CasesStats,         icon: <CheckCircle size={18} />,  color: '#4ADE80', bg: 'rgba(34,197,94,0.1)',    border: 'rgba(34,197,94,0.2)' },
+  ];
 
   return (
     <div className="it-app" style={{ background: 'var(--bg-page)', minHeight: '100vh' }}>
       <div
         className="it-content it-fade-in"
-        style={{ padding: '24px', paddingBottom: selectedCase ? '60vh' : '24px', transition: 'padding-bottom 0.3s ease' }}
+        style={{ padding: '24px', paddingBottom: selectedCaseId ? '60vh' : '24px', transition: 'padding-bottom 0.3s ease' }}
       >
 
         {/* ── Page Header ────────────────────────────────── */}
@@ -776,7 +675,7 @@ export function CaseManagementPage() {
 
         {/* ── Stats Row ──────────────────────────────────── */}
         <div className="it-stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-          {STATS.map(s => (
+          {STATS_CONFIG.map(s => (
             <div
               key={s.label}
               className="it-card it-card-sm"
@@ -784,7 +683,9 @@ export function CaseManagementPage() {
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: 28, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, color: s.color, lineHeight: 1 }}>
+                    {loading ? '—' : stats[s.key]}
+                  </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{s.label}</div>
                 </div>
                 <div style={{ width: 44, height: 44, borderRadius: 10, background: s.bg, border: `1px solid ${s.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.color }}>
@@ -874,17 +775,23 @@ export function CaseManagementPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0 ? (
+                  {loading ? (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                        Loading cases…
+                      </td>
+                    </tr>
+                  ) : cases.length === 0 ? (
                     <tr>
                       <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                         No cases match the current filters.
                       </td>
                     </tr>
-                  ) : filtered.map(c => (
+                  ) : cases.map(c => (
                     <tr
                       key={c.id}
                       style={{ cursor: 'pointer' }}
-                      onClick={() => setSelectedCase(prev => prev?.id === c.id ? null : c)}
+                      onClick={() => setSelectedCaseId(prev => prev === c.id ? null : c.id)}
                     >
                       <td>
                         <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--accent)', fontWeight: 600 }}>
@@ -895,9 +802,9 @@ export function CaseManagementPage() {
                         <div style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)', fontWeight: 500, fontSize: 13 }}>
                           {c.title}
                         </div>
-                        {c.relatedAlert && (
+                        {c.related_alert_id && (
                           <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
-                            Alert: {c.relatedAlert}
+                            Alert: {c.related_alert_id}
                           </div>
                         )}
                       </td>
@@ -926,10 +833,10 @@ export function CaseManagementPage() {
                           <button
                             className="it-btn it-btn-ghost it-btn-sm"
                             style={{ padding: '5px 8px' }}
-                            onClick={() => setSelectedCase(prev => prev?.id === c.id ? null : c)}
+                            onClick={() => setSelectedCaseId(prev => prev === c.id ? null : c.id)}
                             title="View Details"
                           >
-                            {selectedCase?.id === c.id ? <ChevronDown size={13} /> : <Eye size={13} />}
+                            {selectedCaseId === c.id ? <ChevronDown size={13} /> : <Eye size={13} />}
                           </button>
                           <button
                             className="it-btn it-btn-ghost it-btn-sm"
@@ -942,7 +849,10 @@ export function CaseManagementPage() {
                             <button
                               className="it-btn it-btn-ghost it-btn-sm"
                               style={{ padding: '5px 8px', color: '#F87171' }}
-                              onClick={() => handleUpdate(c.id, { status: 'Closed' })}
+                              onClick={async () => {
+                                await apiPatch(`/api/cases/${c.id}`, { status: 'Closed' });
+                                refetchCases();
+                              }}
                               title="Close Case"
                             >
                               <XCircle size={13} />
@@ -957,11 +867,11 @@ export function CaseManagementPage() {
             </div>
             <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Showing {filtered.length} of {cases.length} cases
+                Showing {cases.length} case{cases.length !== 1 ? 's' : ''}
               </span>
               <div className="it-pagination">
                 <button className="it-page-btn" disabled><ChevronUp size={13} style={{ transform: 'rotate(-90deg)' }} /></button>
-                {[1, 2, 3].map(p => (
+                {[1].map(p => (
                   <button key={p} className={`it-page-btn ${p === 1 ? 'active' : ''}`}>{p}</button>
                 ))}
                 <button className="it-page-btn"><ChevronUp size={13} style={{ transform: 'rotate(90deg)' }} /></button>
@@ -969,21 +879,27 @@ export function CaseManagementPage() {
             </div>
           </div>
         ) : (
-          <KanbanView cases={filtered} onSelectCase={c => setSelectedCase(prev => prev?.id === c.id ? null : c)} />
+          <KanbanView
+            cases={cases}
+            onSelectCase={c => setSelectedCaseId(prev => prev === c.id ? null : c.id)}
+          />
         )}
 
       </div>
 
       {/* ── Modals & Drawers ──────────────────────────────── */}
       {showModal && (
-        <CreateCaseModal onClose={() => setShowModal(false)} onCreate={handleCreate} />
+        <CreateCaseModal
+          onClose={() => setShowModal(false)}
+          onCreated={refetchCases}
+        />
       )}
 
-      {selectedCase && (
+      {selectedCaseId && (
         <CaseDrawer
-          caseItem={selectedCase}
-          onClose={() => setSelectedCase(null)}
-          onUpdate={handleUpdate}
+          caseId={selectedCaseId}
+          onClose={() => setSelectedCaseId(null)}
+          onCaseUpdated={refetchCases}
         />
       )}
     </div>

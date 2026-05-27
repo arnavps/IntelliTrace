@@ -25,49 +25,61 @@ import {
   Cell,
 } from 'recharts'
 import '../styles/dashboard.css'
+import { useApi, getUser } from '../../hooks/useApi'
 
-/* ─── Mock Data ─────────────────────────────────────────────────── */
+/* ─── API Response Type ─────────────────────────────────────────── */
 
-const fraudTrendData = [
-  { day: 'Mon', Alerts: 38, Cases: 8 },
-  { day: 'Tue', Alerts: 52, Cases: 11 },
-  { day: 'Wed', Alerts: 41, Cases: 9 },
-  { day: 'Thu', Alerts: 63, Cases: 14 },
-  { day: 'Fri', Alerts: 58, Cases: 12 },
-  { day: 'Sat', Alerts: 29, Cases: 6 },
-  { day: 'Sun', Alerts: 47, Cases: 10 },
-]
+interface DashboardStats {
+  total_transactions: number
+  open_alerts: number
+  critical_cases: number
+  avg_risk_score: number
+  risk_distribution: { name: string; value: number }[]
+  fraud_trend: { day: string; Alerts: number; Cases: number }[]
+  activity_feed: {
+    id: string
+    alert_type: string
+    account_id: string
+    amount: string
+    risk: string
+    time: string
+  }[]
+}
 
-const riskDistribution = [
-  { name: 'Critical', value: 15, color: '#EF4444' },
-  { name: 'High',     value: 25, color: '#F97316' },
-  { name: 'Medium',   value: 35, color: '#EAB308' },
-  { name: 'Low',      value: 25, color: '#22C55E' },
-]
+/* ─── Risk Colors ───────────────────────────────────────────────── */
 
-type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
-
-const activityFeed: {
-  id: string
-  alertType: string
-  accountId: string
-  amount: string
-  time: string
-  risk: RiskLevel
-}[] = [
-  { id: 'ALT-10291', alertType: 'Structuring Detected',       accountId: 'ACC-4821', amount: '₹14,50,000', time: '10:42 AM', risk: 'critical' },
-  { id: 'ALT-10290', alertType: 'Velocity Breach',            accountId: 'ACC-3374', amount: '₹2,80,000',  time: '10:31 AM', risk: 'high'     },
-  { id: 'ALT-10289', alertType: 'Unusual Cross-Border Txn',   accountId: 'ACC-7012', amount: '₹68,00,000', time: '10:18 AM', risk: 'critical' },
-  { id: 'ALT-10288', alertType: 'Round-Trip Transaction',      accountId: 'ACC-5593', amount: '₹9,25,000',  time: '09:55 AM', risk: 'medium'   },
-  { id: 'ALT-10287', alertType: 'Shell Entity Link',          accountId: 'ACC-2210', amount: '₹31,00,000', time: '09:40 AM', risk: 'high'     },
-  { id: 'ALT-10286', alertType: 'Dormant Account Reactivated',accountId: 'ACC-8891', amount: '₹5,00,000',  time: '09:12 AM', risk: 'low'      },
-]
-
-const riskDotColor: Record<RiskLevel, string> = {
+const RISK_COLORS: Record<string, string> = {
+  Critical: '#EF4444',
+  High:     '#F97316',
+  Medium:   '#EAB308',
+  Low:      '#22C55E',
   critical: '#EF4444',
   high:     '#F97316',
   medium:   '#EAB308',
   low:      '#22C55E',
+}
+
+/* ─── Loading Skeleton ───────────────────────────────────────────── */
+
+function SkeletonBox({ width = '100%', height = 20, radius = 8, style = {} }: {
+  width?: string | number
+  height?: number
+  radius?: number
+  style?: React.CSSProperties
+}) {
+  return (
+    <div
+      style={{
+        width,
+        height,
+        borderRadius: radius,
+        background: 'linear-gradient(90deg, #1e1e1e 25%, #2a2a2a 50%, #1e1e1e 75%)',
+        backgroundSize: '200% 100%',
+        animation: 'it-skeleton-pulse 1.5s ease-in-out infinite',
+        ...style,
+      }}
+    />
+  )
 }
 
 /* ─── Stat Card ─────────────────────────────────────────────────── */
@@ -112,6 +124,21 @@ function StatCard({ title, value, delta, deltaUp = true, icon, iconBg }: StatCar
   )
 }
 
+function StatCardSkeleton() {
+  return (
+    <div className="it-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+          <SkeletonBox width={100} height={13} />
+          <SkeletonBox width={70} height={28} />
+          <SkeletonBox width={120} height={12} />
+        </div>
+        <SkeletonBox width={40} height={40} radius={10} />
+      </div>
+    </div>
+  )
+}
+
 /* ─── Custom Tooltip for LineChart ──────────────────────────────── */
 
 function CustomTooltip({ active, payload, label }: {
@@ -142,23 +169,32 @@ export function DashboardPage() {
   const [userName, setUserName] = useState('User')
 
   useEffect(() => {
-    const userStr = localStorage.getItem('user')
-    if (userStr) {
-      try {
-        const user = JSON.parse(userStr)
-        if (user.name) {
-          const firstName = user.name.split(' ')[0]
-          setUserName(firstName)
-        }
-      } catch (e) {
-        console.error(e)
-      }
+    const user = getUser()
+    if (user?.name) {
+      setUserName(user.name.split(' ')[0])
     }
   }, [])
+
+  const { data, loading, error } = useApi<DashboardStats>('/api/dashboard/stats')
 
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
+
+  /* ── Derived display values ─────────────────────────────────── */
+  const totalTxns   = data ? data.total_transactions.toLocaleString('en-IN') : '—'
+  const openAlerts  = data ? String(data.open_alerts) : '—'
+  const critCases   = data ? String(data.critical_cases) : '—'
+  const avgRisk     = data ? data.avg_risk_score.toFixed(2) : '—'
+
+  /* Risk distribution with color injected */
+  const riskDist = (data?.risk_distribution ?? []).map((item) => ({
+    ...item,
+    color: RISK_COLORS[item.name] ?? '#888',
+  }))
+
+  const fraudTrend   = data?.fraud_trend    ?? []
+  const activityFeed = data?.activity_feed  ?? []
 
   return (
     <div className="it-content it-fade-in" style={{ maxWidth: 1400 }}>
@@ -179,6 +215,17 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* ── Error Banner ─────────────────────────────────────────── */}
+      {error && (
+        <div style={{
+          background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+          borderRadius: 10, padding: '10px 16px', marginBottom: 20,
+          color: '#F87171', fontSize: 13,
+        }}>
+          ⚠ Failed to load dashboard data: {error}
+        </div>
+      )}
+
       {/* ── Stat Grid ────────────────────────────────────────────── */}
       <div
         style={{
@@ -188,38 +235,49 @@ export function DashboardPage() {
           marginBottom: 24,
         }}
       >
-        <StatCard
-          title="Total Transactions"
-          value="1,284,930"
-          delta="+12.4% vs yesterday"
-          deltaUp
-          icon={<Activity size={18} color="#F5A623" />}
-          iconBg="rgba(245,166,35,0.15)"
-        />
-        <StatCard
-          title="Fraud Alerts"
-          value="47"
-          delta="+3 new today"
-          deltaUp={false}
-          icon={<AlertTriangle size={18} color="#EF4444" />}
-          iconBg="rgba(239,68,68,0.15)"
-        />
-        <StatCard
-          title="Critical Cases"
-          value="12"
-          delta="4 pending review"
-          deltaUp={false}
-          icon={<ShieldAlert size={18} color="#F97316" />}
-          iconBg="rgba(249,115,22,0.15)"
-        />
-        <StatCard
-          title="Risk Score Avg"
-          value="0.73"
-          delta="High risk threshold"
-          deltaUp={false}
-          icon={<TrendingUp size={18} color="#EAB308" />}
-          iconBg="rgba(234,179,8,0.15)"
-        />
+        {loading ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="Total Transactions"
+              value={totalTxns}
+              delta="+12.4% vs yesterday"
+              deltaUp
+              icon={<Activity size={18} color="#F5A623" />}
+              iconBg="rgba(245,166,35,0.15)"
+            />
+            <StatCard
+              title="Fraud Alerts"
+              value={openAlerts}
+              delta="Open alerts today"
+              deltaUp={false}
+              icon={<AlertTriangle size={18} color="#EF4444" />}
+              iconBg="rgba(239,68,68,0.15)"
+            />
+            <StatCard
+              title="Critical Cases"
+              value={critCases}
+              delta="Pending review"
+              deltaUp={false}
+              icon={<ShieldAlert size={18} color="#F97316" />}
+              iconBg="rgba(249,115,22,0.15)"
+            />
+            <StatCard
+              title="Risk Score Avg"
+              value={avgRisk}
+              delta="High risk threshold"
+              deltaUp={false}
+              icon={<TrendingUp size={18} color="#EAB308" />}
+              iconBg="rgba(234,179,8,0.15)"
+            />
+          </>
+        )}
       </div>
 
       {/* ── Row 2: Charts ─────────────────────────────────────────── */}
@@ -231,36 +289,44 @@ export function DashboardPage() {
             <p className="it-card-title">Fraud Trends — Last 7 Days</p>
             <span className="it-badge it-badge-accent">Weekly</span>
           </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={fraudTrendData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
-              <XAxis dataKey="day" tick={{ fill: '#666', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#666', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={<CustomTooltip />} />
-              <Line
-                type="monotone" dataKey="Alerts"
-                stroke="#F5A623" strokeWidth={2.5}
-                dot={{ fill: '#F5A623', strokeWidth: 0, r: 3 }}
-                activeDot={{ r: 5, fill: '#F5A623' }}
-              />
-              <Line
-                type="monotone" dataKey="Cases"
-                stroke="#EF4444" strokeWidth={2.5}
-                dot={{ fill: '#EF4444', strokeWidth: 0, r: 3 }}
-                activeDot={{ r: 5, fill: '#EF4444' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'flex', gap: 20, marginTop: 12, justifyContent: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#999' }}>
-              <span style={{ width: 24, height: 2, background: '#F5A623', borderRadius: 2, display: 'inline-block' }} />
-              Alerts
+          {loading ? (
+            <div style={{ marginTop: 16 }}>
+              <SkeletonBox height={220} radius={10} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#999' }}>
-              <span style={{ width: 24, height: 2, background: '#EF4444', borderRadius: 2, display: 'inline-block' }} />
-              Cases
-            </div>
-          </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={fraudTrend} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fill: '#666', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#666', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Line
+                    type="monotone" dataKey="Alerts"
+                    stroke="#F5A623" strokeWidth={2.5}
+                    dot={{ fill: '#F5A623', strokeWidth: 0, r: 3 }}
+                    activeDot={{ r: 5, fill: '#F5A623' }}
+                  />
+                  <Line
+                    type="monotone" dataKey="Cases"
+                    stroke="#EF4444" strokeWidth={2.5}
+                    dot={{ fill: '#EF4444', strokeWidth: 0, r: 3 }}
+                    activeDot={{ r: 5, fill: '#EF4444' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', gap: 20, marginTop: 12, justifyContent: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#999' }}>
+                  <span style={{ width: 24, height: 2, background: '#F5A623', borderRadius: 2, display: 'inline-block' }} />
+                  Alerts
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#999' }}>
+                  <span style={{ width: 24, height: 2, background: '#EF4444', borderRadius: 2, display: 'inline-block' }} />
+                  Cases
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Risk Distribution */}
@@ -269,40 +335,52 @@ export function DashboardPage() {
             <p className="it-card-title">Risk Distribution</p>
             <span className="it-badge it-badge-neutral">Today</span>
           </div>
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie
-                data={riskDistribution}
-                cx="50%" cy="50%"
-                innerRadius={48}
-                outerRadius={72}
-                paddingAngle={3}
-                dataKey="value"
-                stroke="none"
-              >
-                {riskDistribution.map((entry) => (
-                  <Cell key={entry.name} fill={entry.color} />
+          {loading ? (
+            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <SkeletonBox height={160} radius={10} />
+              <SkeletonBox height={14} width="80%" />
+              <SkeletonBox height={14} width="70%" />
+              <SkeletonBox height={14} width="75%" />
+              <SkeletonBox height={14} width="65%" />
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie
+                    data={riskDist}
+                    cx="50%" cy="50%"
+                    innerRadius={48}
+                    outerRadius={72}
+                    paddingAngle={3}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {riskDist.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: unknown, name: unknown) => [`${value}%`, name]}
+                    contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, fontSize: 12 }}
+                    itemStyle={{ color: '#fff' }}
+                    labelStyle={{ color: '#999' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                {riskDist.map((item) => (
+                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, color: '#999' }}>{item.name}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{item.value}%</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip
-                formatter={(value: any, name: any) => [`${value}%`, name]}
-                contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, fontSize: 12 }}
-                itemStyle={{ color: '#fff' }}
-                labelStyle={{ color: '#999' }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-            {riskDistribution.map((item) => (
-              <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: '#999' }}>{item.name}</span>
-                </div>
-                <span style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{item.value}%</span>
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -318,44 +396,67 @@ export function DashboardPage() {
             </Link>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 320, overflowY: 'auto' }}>
-            {activityFeed.map((item) => (
-              <Link
-                key={item.id}
-                to={`/alerts/${item.id}`}
-                style={{ textDecoration: 'none' }}
-              >
-                <div
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '11px 12px', borderRadius: 10, cursor: 'pointer',
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#222')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span
-                      style={{
-                        width: 8, height: 8, borderRadius: '50%',
-                        background: riskDotColor[item.risk],
-                        flexShrink: 0,
-                        boxShadow: `0 0 6px ${riskDotColor[item.risk]}66`,
-                      }}
-                    />
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 500, color: '#fff' }}>{item.alertType}</p>
-                      <p style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
-                        {item.accountId} &nbsp;·&nbsp; {item.id}
-                      </p>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} style={{ padding: '11px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1 }}>
+                    <SkeletonBox width={8} height={8} radius={99} style={{ flexShrink: 0 }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
+                      <SkeletonBox width="60%" height={13} />
+                      <SkeletonBox width="40%" height={11} />
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{item.amount}</p>
-                    <p style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{item.time}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
+                    <SkeletonBox width={70} height={13} />
+                    <SkeletonBox width={50} height={11} />
                   </div>
                 </div>
-              </Link>
-            ))}
+              ))
+            ) : activityFeed.length === 0 ? (
+              <p style={{ color: '#555', fontSize: 13, padding: '20px 12px' }}>No recent activity.</p>
+            ) : (
+              activityFeed.map((item) => {
+                const dotColor = RISK_COLORS[item.risk] ?? '#888'
+                return (
+                  <Link
+                    key={item.id}
+                    to={`/alerts/${item.id}`}
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '11px 12px', borderRadius: 10, cursor: 'pointer',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#222')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span
+                          style={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            background: dotColor,
+                            flexShrink: 0,
+                            boxShadow: `0 0 6px ${dotColor}66`,
+                          }}
+                        />
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 500, color: '#fff' }}>{item.alert_type}</p>
+                          <p style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                            {item.account_id} &nbsp;·&nbsp; {item.id}
+                          </p>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{item.amount}</p>
+                        <p style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{item.time}</p>
+                      </div>
+                    </div>
+                  </Link>
+                )
+              })
+            )}
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -13,8 +13,10 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import '../styles/dashboard.css';
+import { useApi } from '../../hooks/useApi';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,269 +29,97 @@ type AlertType =
   | 'Dormant Activation'
   | 'Profile Mismatch'
   | 'Cross-Border Alert'
-  | 'Structuring';
+  | 'Structuring'
+  | string;
 
-interface Alert {
+interface ApiAlert {
   id: string;
-  type: AlertType;
-  accountId: string;
-  amount: string;
-  amountRaw: number;
-  riskScore: number;
-  riskLevel: RiskLevel;
-  status: AlertStatus;
+  type: string;
+  account_id: string;
+  amount_formatted: string;
+  risk_score: number;
+  risk_level: string;
+  status: string;
   timestamp: string;
   description: string;
-  flagReason: string;
+  flag_reason: string;
+  amount: number;
 }
 
-// ─── Mock Alerts ──────────────────────────────────────────────────────────────
+interface AlertsSummary {
+  total: number;
+  critical_open: number;
+  avg_risk: number;
+  resolved_today: number;
+}
 
-const MOCK_ALERTS: Alert[] = [
-  {
-    id: 'ALT-8821',
-    type: 'Round-Tripping',
-    accountId: 'ACC-0001',
-    amount: '₹4.85 Cr',
-    amountRaw: 48500000,
-    riskScore: 97,
-    riskLevel: 'critical',
-    status: 'Open',
-    timestamp: '2026-05-26 00:02',
-    description: 'Funds circulated through 4 shell entities and returned to origin account within 72h.',
-    flagReason: 'ML model detected circular flow with >94% confidence using GNN embeddings.',
-  },
-  {
-    id: 'ALT-7734',
-    type: 'Smurfing',
-    accountId: 'ACC-1204',
-    amount: '₹2.12 Cr',
-    amountRaw: 21200000,
-    riskScore: 91,
-    riskLevel: 'critical',
-    status: 'Under Review',
-    timestamp: '2026-05-25 22:14',
-    description: '38 transactions of ₹4.99L each split across 12 sub-accounts over 6 hours.',
-    flagReason: 'Structuring pattern detected — all transactions just below ₹5L reporting threshold.',
-  },
-  {
-    id: 'ALT-6619',
-    type: 'Rapid Layering',
-    accountId: 'SHELL-A',
-    amount: '₹7.40 Cr',
-    amountRaw: 74000000,
-    riskScore: 89,
-    riskLevel: 'critical',
-    status: 'Open',
-    timestamp: '2026-05-25 23:45',
-    description: 'Funds moved through 6 intermediary accounts in 5 countries within 18 hours.',
-    flagReason: 'Velocity anomaly: 6 jurisdiction hops in <18h. Cross-border pattern matched against FATF typology.',
-  },
-  {
-    id: 'ALT-5508',
-    type: 'Dormant Activation',
-    accountId: 'ACC-8821',
-    amount: '₹1.30 Cr',
-    amountRaw: 13000000,
-    riskScore: 85,
-    riskLevel: 'critical',
-    status: 'Open',
-    timestamp: '2026-05-26 00:02',
-    description: 'Account dormant for 847 days suddenly received ₹1.3Cr from 3 unknown entities.',
-    flagReason: 'Zero activity for 847 days followed by large inflow burst — high suspicion pattern.',
-  },
-  {
-    id: 'ALT-4402',
-    type: 'Cross-Border Alert',
-    accountId: 'BANK-OFX',
-    amount: '₹9.20 Cr',
-    amountRaw: 92000000,
-    riskScore: 82,
-    riskLevel: 'critical',
-    status: 'Open',
-    timestamp: '2026-05-25 23:01',
-    description: 'SWIFT transfers from Offshore Bank X to 3 Mauritius shell entities in 2h window.',
-    flagReason: 'Offshore jurisdiction + shell entity pattern + SWIFT routing inconsistency flagged.',
-  },
-  {
-    id: 'ALT-3391',
-    type: 'Structuring',
-    accountId: 'ACC-9932',
-    amount: '₹3.80 Cr',
-    amountRaw: 38000000,
-    riskScore: 76,
-    riskLevel: 'high',
-    status: 'Under Review',
-    timestamp: '2026-05-25 20:55',
-    description: '22 cash deposits structured to avoid CTR reporting. Pattern spread over 4 branches.',
-    flagReason: 'Rule engine: 22 deposits × ₹1.7L avg within 3 days across multiple branches.',
-  },
-  {
-    id: 'ALT-2278',
-    type: 'Round-Tripping',
-    accountId: 'GHOST-T',
-    amount: '₹5.60 Cr',
-    amountRaw: 56000000,
-    riskScore: 74,
-    riskLevel: 'high',
-    status: 'Open',
-    timestamp: '2026-05-25 22:59',
-    description: 'Ghost Traders Ltd used as transit node — inflow and outflow match within 2.4% margin.',
-    flagReason: 'Amount conservation ratio 97.6%: classic layering behaviour with negligible fee leakage.',
-  },
-  {
-    id: 'ALT-1165',
-    type: 'Rapid Layering',
-    accountId: 'BANK-DXB',
-    amount: '₹6.80 Cr',
-    amountRaw: 68000000,
-    riskScore: 72,
-    riskLevel: 'high',
-    status: 'Under Review',
-    timestamp: '2026-05-25 21:18',
-    description: 'Dubai Bank SWIFT outflows to 4 UAE entities. Correspondent relationship not on approved list.',
-    flagReason: 'Correspondent bank not on pre-approved list. Transaction volume spike 340% vs 90-day avg.',
-  },
-  {
-    id: 'ALT-0954',
-    type: 'Profile Mismatch',
-    accountId: 'ACC-7711',
-    amount: '₹45.0 L',
-    amountRaw: 4500000,
-    riskScore: 68,
-    riskLevel: 'high',
-    status: 'Open',
-    timestamp: '2026-05-24 18:10',
-    description: 'Retired individual account receiving ₹45L — inconsistent with declared income profile.',
-    flagReason: 'KYC declared annual income ₹6L. Inflows 7.5× annual income in single month flagged.',
-  },
-  {
-    id: 'ALT-0841',
-    type: 'Smurfing',
-    accountId: 'ACC-4450',
-    amount: '₹27.0 L',
-    amountRaw: 2700000,
-    riskScore: 63,
-    riskLevel: 'high',
-    status: 'Resolved',
-    timestamp: '2026-05-24 09:20',
-    description: '15 micro-transactions from different IPs all rounded to ₹1.8L each, same merchant.',
-    flagReason: 'Device fingerprint analysis: 15 distinct devices, same recipient merchant TXN-44509.',
-  },
-  {
-    id: 'ALT-0730',
-    type: 'Dormant Activation',
-    accountId: 'ACC-3301',
-    amount: '₹15.0 L',
-    amountRaw: 1500000,
-    riskScore: 54,
-    riskLevel: 'medium',
-    status: 'Under Review',
-    timestamp: '2026-05-23 14:45',
-    description: 'Account inactive 14 months. Received ₹15L then immediately transferred out within 90 minutes.',
-    flagReason: 'Dormancy + immediate pass-through pattern. No fee / service transactions — pure transit.',
-  },
-  {
-    id: 'ALT-0618',
-    type: 'Profile Mismatch',
-    accountId: 'ACC-3301',
-    amount: '₹8.5 L',
-    amountRaw: 850000,
-    riskScore: 51,
-    riskLevel: 'medium',
-    status: 'Open',
-    timestamp: '2026-05-23 11:22',
-    description: 'Student account with 3 international SWIFT receipts totalling ₹8.5L in 10 days.',
-    flagReason: 'International inflows inconsistent with student profile. Source of funds unverified.',
-  },
-  {
-    id: 'ALT-0502',
-    type: 'Structuring',
-    accountId: 'BANK-MRX',
-    amount: '₹43.0 L',
-    amountRaw: 4300000,
-    riskScore: 47,
-    riskLevel: 'medium',
-    status: 'False Positive',
-    timestamp: '2026-05-24 16:30',
-    description: 'Multiple small transfers to Mauritius Offshore flagged by rule engine for review.',
-    flagReason: 'Rule-based: total offshore transfers exceeded ₹40L threshold in 7-day window.',
-  },
-  {
-    id: 'ALT-0388',
-    type: 'Cross-Border Alert',
-    accountId: 'ACC-7711',
-    amount: '₹21.0 L',
-    amountRaw: 2100000,
-    riskScore: 35,
-    riskLevel: 'low',
-    status: 'Resolved',
-    timestamp: '2026-05-22 10:15',
-    description: 'NEFT transfer to Singapore-based account without prior cross-border declaration.',
-    flagReason: 'Cross-border declaration missing for transfer >₹15L. Regulatory compliance gap.',
-  },
-  {
-    id: 'ALT-0271',
-    type: 'Profile Mismatch',
-    accountId: 'ACC-1204',
-    amount: '₹9.8 L',
-    amountRaw: 980000,
-    riskScore: 28,
-    riskLevel: 'low',
-    status: 'False Positive',
-    timestamp: '2026-05-21 08:40',
-    description: 'Large salary credit to self-employed account flagged against declared income.',
-    flagReason: 'Salary code used for self-employed account — income code mismatch in CBS system.',
-  },
-];
+interface AlertsCounts {
+  All: number;
+  Critical: number;
+  High: number;
+  Medium: number;
+  Low: number;
+}
+
+interface AlertsResponse {
+  alerts: ApiAlert[];
+  total: number;
+  page: number;
+  limit: number;
+  summary: AlertsSummary;
+  counts: AlertsCounts;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const RISK_COLORS: Record<RiskLevel, { border: string; text: string; shadow: string }> = {
+const RISK_COLORS: Record<string, { border: string; text: string; shadow: string }> = {
   critical: { border: '#EF4444', text: '#F87171', shadow: '0 0 18px rgba(239,68,68,0.25)' },
   high:     { border: '#F97316', text: '#FB923C', shadow: '0 0 18px rgba(249,115,22,0.25)' },
   medium:   { border: '#EAB308', text: '#FDE047', shadow: '0 0 18px rgba(234,179,8,0.25)'  },
   low:      { border: '#22C55E', text: '#4ADE80', shadow: '0 0 18px rgba(34,197,94,0.25)'  },
 };
 
-const RISK_BAR_COLORS: Record<RiskLevel, string> = {
+const RISK_BAR_COLORS: Record<string, string> = {
   critical: '#EF4444',
   high: '#F97316',
   medium: '#EAB308',
   low: '#22C55E',
 };
 
-const STATUS_BADGE: Record<AlertStatus, string> = {
+const STATUS_BADGE: Record<string, string> = {
   'Open': 'it-badge-open',
   'Under Review': 'it-badge-review',
   'Resolved': 'it-badge-closed',
   'False Positive': 'it-badge-neutral',
 };
 
-const TYPE_ICONS: Record<AlertType, React.ReactNode> = {
-  'Smurfing':          <AlertTriangle size={13} />,
-  'Round-Tripping':    <TrendingUp size={13} />,
-  'Rapid Layering':    <ShieldAlert size={13} />,
-  'Dormant Activation':<Clock size={13} />,
-  'Profile Mismatch':  <Eye size={13} />,
-  'Cross-Border Alert':<Bell size={13} />,
-  'Structuring':       <Filter size={13} />,
-};
-
-const TAB_COUNTS: Record<string, number> = {
-  All: 47,
-  Critical: 12,
-  High: 18,
-  Medium: 11,
-  Low: 6,
-};
+function getTypeIcon(type: string): React.ReactNode {
+  switch (type) {
+    case 'Smurfing':           return <AlertTriangle size={13} />;
+    case 'Round-Tripping':     return <TrendingUp size={13} />;
+    case 'Rapid Layering':     return <ShieldAlert size={13} />;
+    case 'Dormant Activation': return <Clock size={13} />;
+    case 'Profile Mismatch':   return <Eye size={13} />;
+    case 'Cross-Border Alert': return <Bell size={13} />;
+    case 'Structuring':        return <Filter size={13} />;
+    default:                   return <AlertTriangle size={13} />;
+  }
+}
 
 const SORT_OPTIONS = ['Newest', 'Risk Score', 'Amount'];
 
 // ─── Alert Card Component ─────────────────────────────────────────────────────
 
-function AlertCard({ alert, onClick }: { alert: Alert; onClick: () => void }) {
-  const riskColors = RISK_COLORS[alert.riskLevel];
+function AlertCard({ alert, onClick }: { alert: ApiAlert; onClick: () => void }) {
+  const riskLevel = alert.risk_level?.toLowerCase() ?? 'low';
+  const riskColors = RISK_COLORS[riskLevel] ?? RISK_COLORS.low;
+  const rgbMap: Record<string, string> = {
+    critical: '239,68,68',
+    high: '249,115,22',
+    medium: '234,179,8',
+    low: '34,197,94',
+  };
+  const rgb = rgbMap[riskLevel] ?? '34,197,94';
 
   return (
     <div
@@ -319,7 +149,7 @@ function AlertCard({ alert, onClick }: { alert: Alert; onClick: () => void }) {
       }}
     >
       {/* Risk indicator bar */}
-      <div style={{ width: '4px', background: RISK_BAR_COLORS[alert.riskLevel], flexShrink: 0 }} />
+      <div style={{ width: '4px', background: RISK_BAR_COLORS[riskLevel] ?? '#22C55E', flexShrink: 0 }} />
 
       {/* Main content */}
       <div style={{ flex: 1, padding: '16px', display: 'flex', gap: '16px', alignItems: 'center' }}>
@@ -327,12 +157,12 @@ function AlertCard({ alert, onClick }: { alert: Alert; onClick: () => void }) {
         {/* Left: type icon */}
         <div style={{
           width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0,
-          background: `rgba(${alert.riskLevel === 'critical' ? '239,68,68' : alert.riskLevel === 'high' ? '249,115,22' : alert.riskLevel === 'medium' ? '234,179,8' : '34,197,94'}, 0.12)`,
-          border: `1px solid rgba(${alert.riskLevel === 'critical' ? '239,68,68' : alert.riskLevel === 'high' ? '249,115,22' : alert.riskLevel === 'medium' ? '234,179,8' : '34,197,94'}, 0.25)`,
+          background: `rgba(${rgb}, 0.12)`,
+          border: `1px solid rgba(${rgb}, 0.25)`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: riskColors.text,
         }}>
-          {TYPE_ICONS[alert.type]}
+          {getTypeIcon(alert.type)}
         </div>
 
         {/* Center: info */}
@@ -344,17 +174,17 @@ function AlertCard({ alert, onClick }: { alert: Alert; onClick: () => void }) {
             <span style={{ fontFamily: 'Courier New, monospace', fontSize: '11px', color: '#F5A623', background: 'rgba(245,166,35,0.1)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: '5px', padding: '1px 7px' }}>
               {alert.type}
             </span>
-            <span className={`it-badge ${STATUS_BADGE[alert.status]}`} style={{ fontSize: '10px' }}>
+            <span className={`it-badge ${STATUS_BADGE[alert.status] ?? 'it-badge-neutral'}`} style={{ fontSize: '10px' }}>
               {alert.status}
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px', flexWrap: 'wrap' }}>
             <span style={{ fontFamily: 'Courier New, monospace', fontSize: '12px', color: '#777' }}>
-              {alert.accountId}
+              {alert.account_id}
             </span>
             <span style={{ fontSize: '13px', fontWeight: 600, color: '#fff', fontFamily: 'Inter, sans-serif' }}>
-              {alert.amount}
+              {alert.amount_formatted}
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#555', fontFamily: 'Inter, sans-serif' }}>
               <Clock size={10} />
@@ -367,7 +197,7 @@ function AlertCard({ alert, onClick }: { alert: Alert; onClick: () => void }) {
           </p>
 
           <p style={{ fontSize: '11px', color: '#555', fontFamily: 'Inter, sans-serif', lineHeight: 1.4, margin: '4px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            🚩 {alert.flagReason}
+            🚩 {alert.flag_reason}
           </p>
         </div>
 
@@ -380,7 +210,7 @@ function AlertCard({ alert, onClick }: { alert: Alert; onClick: () => void }) {
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           }}>
             <span style={{ fontSize: '18px', fontWeight: 800, color: riskColors.text, fontFamily: 'Inter, sans-serif', lineHeight: 1 }}>
-              {alert.riskScore}
+              {alert.risk_score}
             </span>
             <span style={{ fontSize: '9px', color: '#555', fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}>RISK</span>
           </div>
@@ -399,6 +229,28 @@ function AlertCard({ alert, onClick }: { alert: Alert; onClick: () => void }) {
   );
 }
 
+// ─── Loading Skeleton ─────────────────────────────────────────────────────────
+
+function AlertSkeleton() {
+  return (
+    <div style={{
+      background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: '12px',
+      display: 'flex', alignItems: 'stretch', overflow: 'hidden', height: '100px',
+    }}>
+      <div style={{ width: '4px', background: '#2A2A2A', flexShrink: 0 }} />
+      <div style={{ flex: 1, padding: '16px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+        <div style={{ width: 40, height: 40, borderRadius: 10, background: '#242424', flexShrink: 0 }} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ height: 14, width: '40%', borderRadius: 6, background: '#242424' }} />
+          <div style={{ height: 12, width: '60%', borderRadius: 6, background: '#1E1E1E' }} />
+          <div style={{ height: 10, width: '80%', borderRadius: 6, background: '#1E1E1E' }} />
+        </div>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#242424', flexShrink: 0 }} />
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function AlertsPage() {
@@ -412,48 +264,33 @@ export function AlertsPage() {
 
   const ITEMS_PER_PAGE = 8;
 
-  // Filter alerts
-  const filteredAlerts = MOCK_ALERTS.filter(alert => {
-    const matchesTab =
-      activeTab === 'All' ||
-      (activeTab === 'Critical' && alert.riskLevel === 'critical') ||
-      (activeTab === 'High' && alert.riskLevel === 'high') ||
-      (activeTab === 'Medium' && alert.riskLevel === 'medium') ||
-      (activeTab === 'Low' && alert.riskLevel === 'low');
-
-    const matchesStatus =
-      statusFilter === 'All' || alert.status === statusFilter;
-
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      !q ||
-      alert.id.toLowerCase().includes(q) ||
-      alert.accountId.toLowerCase().includes(q) ||
-      alert.type.toLowerCase().includes(q) ||
-      alert.description.toLowerCase().includes(q);
-
-    return matchesTab && matchesStatus && matchesSearch;
+  // Build query string dynamically
+  const params = new URLSearchParams({
+    risk_level: activeTab,
+    status: statusFilter,
+    search: searchQuery,
+    sort: sortBy,
+    page: String(currentPage),
+    limit: String(ITEMS_PER_PAGE),
   });
+  const apiUrl = `/api/alerts?${params.toString()}`;
 
-  // Sort
-  const sortedAlerts = [...filteredAlerts].sort((a, b) => {
-    if (sortBy === 'Risk Score') return b.riskScore - a.riskScore;
-    if (sortBy === 'Amount') return b.amountRaw - a.amountRaw;
-    // Newest
-    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-  });
+  const { data, loading, error } = useApi<AlertsResponse>(apiUrl, [
+    activeTab, statusFilter, searchQuery, sortBy, currentPage,
+  ]);
 
-  // Paginate
-  const totalPages = Math.max(1, Math.ceil(sortedAlerts.length / ITEMS_PER_PAGE));
-  const pageAlerts = sortedAlerts.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+  const alerts = data?.alerts ?? [];
+  const total = data?.total ?? 0;
+  const summary = data?.summary ?? { total: 0, critical_open: 0, avg_risk: 0, resolved_today: 0 };
+  const counts = data?.counts ?? { All: 0, Critical: 0, High: 0, Medium: 0, Low: 0 };
+  const totalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     setCurrentPage(1);
   };
+
+  const TAB_KEYS: Array<keyof AlertsCounts> = ['All', 'Critical', 'High', 'Medium', 'Low'];
 
   return (
     <div className="it-app it-content" style={{ minHeight: '100vh' }}>
@@ -483,16 +320,18 @@ export function AlertsPage() {
       {/* Summary stat chips */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
         {[
-          { label: 'Total Alerts', value: '47', color: '#60A5FA' },
-          { label: 'Critical Open', value: '5', color: '#F87171' },
-          { label: 'Avg Risk Score', value: '64', color: '#F5A623' },
-          { label: 'Resolved Today', value: '3', color: '#4ADE80' },
+          { label: 'Total Alerts',   value: summary.total,          color: '#60A5FA' },
+          { label: 'Critical Open',  value: summary.critical_open,   color: '#F87171' },
+          { label: 'Avg Risk Score', value: summary.avg_risk,        color: '#F5A623' },
+          { label: 'Resolved Today', value: summary.resolved_today,  color: '#4ADE80' },
         ].map(s => (
           <div key={s.label} style={{
             background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: '10px',
             padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '10px',
           }}>
-            <span style={{ fontSize: '20px', fontWeight: 700, color: s.color, fontFamily: 'Inter, sans-serif' }}>{s.value}</span>
+            <span style={{ fontSize: '20px', fontWeight: 700, color: s.color, fontFamily: 'Inter, sans-serif' }}>
+              {loading ? '—' : s.value}
+            </span>
             <span style={{ fontSize: '12px', color: '#666', fontFamily: 'Inter, sans-serif' }}>{s.label}</span>
           </div>
         ))}
@@ -500,7 +339,7 @@ export function AlertsPage() {
 
       {/* Tabs */}
       <div className="it-tabs">
-        {Object.entries(TAB_COUNTS).map(([tab, count]) => (
+        {TAB_KEYS.map(tab => (
           <button
             key={tab}
             className={`it-tab${activeTab === tab ? ' active' : ''}`}
@@ -520,7 +359,7 @@ export function AlertsPage() {
               fontSize: '11px',
               fontWeight: 700,
             }}>
-              {count}
+              {loading ? '…' : counts[tab]}
             </span>
           </button>
         ))}
@@ -564,7 +403,7 @@ export function AlertsPage() {
             className="it-input it-select"
             style={{ width: 'auto', fontSize: '12px', padding: '7px 28px 7px 10px' }}
             value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
+            onChange={e => { setSortBy(e.target.value); setCurrentPage(1); }}
           >
             {SORT_OPTIONS.map(o => <option key={o}>{o}</option>)}
           </select>
@@ -587,20 +426,28 @@ export function AlertsPage() {
 
         {/* Results count */}
         <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#555', fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap' }}>
-          {filteredAlerts.length} result{filteredAlerts.length !== 1 ? 's' : ''}
+          {loading ? 'Loading…' : `${total} result${total !== 1 ? 's' : ''}`}
         </span>
       </div>
 
       {/* Alert Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '24px' }}>
-        {pageAlerts.length === 0 ? (
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => <AlertSkeleton key={i} />)
+        ) : error ? (
+          <div className="it-empty-state">
+            <ShieldAlert size={36} color="#EF4444" />
+            <div className="it-empty-title" style={{ color: '#F87171' }}>Failed to load alerts</div>
+            <div className="it-empty-desc">{error}</div>
+          </div>
+        ) : alerts.length === 0 ? (
           <div className="it-empty-state">
             <Bell size={36} color="#333" />
             <div className="it-empty-title">No alerts found</div>
             <div className="it-empty-desc">Try adjusting your filters or search query.</div>
           </div>
         ) : (
-          pageAlerts.map(alert => (
+          alerts.map(alert => (
             <AlertCard
               key={alert.id}
               alert={alert}
@@ -611,34 +458,36 @@ export function AlertsPage() {
       </div>
 
       {/* Pagination */}
-      <div className="it-pagination">
-        <span style={{ fontSize: '12px', color: '#555', fontFamily: 'Inter, sans-serif', marginRight: '6px' }}>
-          Page {currentPage} of {totalPages}
-        </span>
-        <button
-          className="it-page-btn"
-          disabled={currentPage === 1}
-          onClick={() => setCurrentPage(p => p - 1)}
-        >
-          <ChevronLeft size={14} />
-        </button>
-        {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+      {!loading && !error && total > 0 && (
+        <div className="it-pagination">
+          <span style={{ fontSize: '12px', color: '#555', fontFamily: 'Inter, sans-serif', marginRight: '6px' }}>
+            Page {currentPage} of {totalPages}
+          </span>
           <button
-            key={p}
-            className={`it-page-btn${p === currentPage ? ' active' : ''}`}
-            onClick={() => setCurrentPage(p)}
+            className="it-page-btn"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage(p => p - 1)}
           >
-            {p}
+            <ChevronLeft size={14} />
           </button>
-        ))}
-        <button
-          className="it-page-btn"
-          disabled={currentPage === totalPages}
-          onClick={() => setCurrentPage(p => p + 1)}
-        >
-          <ChevronRight size={14} />
-        </button>
-      </div>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+            <button
+              key={p}
+              className={`it-page-btn${p === currentPage ? ' active' : ''}`}
+              onClick={() => setCurrentPage(p)}
+            >
+              {p}
+            </button>
+          ))}
+          <button
+            className="it-page-btn"
+            disabled={currentPage === totalPages}
+            onClick={() => setCurrentPage(p => p + 1)}
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

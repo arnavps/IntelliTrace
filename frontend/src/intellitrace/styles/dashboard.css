@@ -722,6 +722,11 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 .it-spin { animation: spin 1s linear infinite; }
 
+@keyframes it-skeleton-pulse {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
   .it-sidebar { transform: translateX(-100%); }

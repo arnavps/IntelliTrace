@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   FileText,
   Download,
@@ -15,25 +15,45 @@ import {
   Eye,
 } from 'lucide-react';
 import '../styles/dashboard.css';
+import { useApi, apiPost, getUser } from '../../hooks/useApi';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type ReportType = 'STR' | 'SAR' | 'Investigation' | 'Risk Assessment';
 type ReportFormat = 'PDF' | 'CSV' | 'Excel';
-type ReportStatus = 'Ready' | 'Processing' | 'Failed';
 
 interface GeneratedReport {
   id: string;
-  type: ReportType;
-  dateRange: string;
-  generatedAt: string;
-  status: ReportStatus;
-  format: ReportFormat;
-  size: string;
-  generatedBy: string;
+  type: string;
+  date_range: string;
+  status: string;
+  format: string;
+  file_size?: string;
+  generated_by_name: string;
+  generated_at: string;
 }
 
-// ─── Mock Data ─────────────────────────────────────────────────────────────────
+interface ReportsSummary {
+  total: number;
+  this_month: number;
+  pending: number;
+  failed: number;
+}
+
+interface LastGenerated {
+  STR?: string;
+  SAR?: string;
+  Investigation?: string;
+  'Risk Assessment'?: string;
+}
+
+interface ReportsResponse {
+  reports: GeneratedReport[];
+  summary: ReportsSummary;
+  last_generated: LastGenerated;
+}
+
+// ─── Static Report Type Config (UI only, no data) ────────────────────────────
 
 const REPORT_TYPES = [
   {
@@ -43,7 +63,6 @@ const REPORT_TYPES = [
     subtitle: 'STR — FIU-IND Format',
     description: 'Mandatory report for the Financial Intelligence Unit of India. Covers all flagged transactions meeting regulatory thresholds.',
     compliance: 'FIU-IND Compliant',
-    lastGenerated: '3 days ago',
     accentColor: '#F5A623',
     borderColor: 'rgba(245,166,35,0.4)',
     bgColor: 'rgba(245,166,35,0.05)',
@@ -56,7 +75,6 @@ const REPORT_TYPES = [
     subtitle: 'SAR — FinCEN Format',
     description: 'Compliant with FinCEN requirements. Covers suspicious account behaviors, pattern analysis, and entity relationships.',
     compliance: 'FinCEN Compliant',
-    lastGenerated: '7 days ago',
     accentColor: '#3B82F6',
     borderColor: 'rgba(59,130,246,0.35)',
     bgColor: 'rgba(59,130,246,0.05)',
@@ -69,7 +87,6 @@ const REPORT_TYPES = [
     subtitle: 'Internal Case Format',
     description: 'Comprehensive internal investigation summary including entity profiles, transaction networks, and analyst notes.',
     compliance: 'Internal Format',
-    lastGenerated: '1 day ago',
     accentColor: '#8B5CF6',
     borderColor: 'rgba(139,92,246,0.35)',
     bgColor: 'rgba(139,92,246,0.05)',
@@ -82,7 +99,6 @@ const REPORT_TYPES = [
     subtitle: 'Model & Portfolio Metrics',
     description: 'Quantitative risk model output including GNN scores, XGBoost confidence intervals, and portfolio risk distribution.',
     compliance: 'Model Metrics',
-    lastGenerated: '12 days ago',
     accentColor: '#22C55E',
     borderColor: 'rgba(34,197,94,0.35)',
     bgColor: 'rgba(34,197,94,0.05)',
@@ -90,44 +106,41 @@ const REPORT_TYPES = [
   },
 ];
 
-const GENERATED_REPORTS: GeneratedReport[] = [
-  { id: 'RPT-2025-0156', type: 'STR', dateRange: '01 May – 24 May 2025', generatedAt: '24 May 2025, 10:31 AM', status: 'Ready', format: 'PDF', size: '2.4 MB', generatedBy: 'Admin User' },
-  { id: 'RPT-2025-0155', type: 'SAR', dateRange: '01 Apr – 30 Apr 2025', generatedAt: '23 May 2025, 03:12 PM', status: 'Ready', format: 'Excel', size: '1.8 MB', generatedBy: 'Priya Analyst' },
-  { id: 'RPT-2025-0154', type: 'Investigation', dateRange: 'Case CAS-0031', generatedAt: '22 May 2025, 11:45 AM', status: 'Processing', format: 'PDF', size: '—', generatedBy: 'Ravi Investigator' },
-  { id: 'RPT-2025-0153', type: 'Risk Assessment', dateRange: 'Q1 2025', generatedAt: '21 May 2025, 09:00 AM', status: 'Ready', format: 'PDF', size: '5.1 MB', generatedBy: 'Admin User' },
-  { id: 'RPT-2025-0152', type: 'STR', dateRange: '01 Apr – 30 Apr 2025', generatedAt: '20 May 2025, 02:30 PM', status: 'Ready', format: 'CSV', size: '890 KB', generatedBy: 'Admin User' },
-  { id: 'RPT-2025-0151', type: 'SAR', dateRange: '01 Mar – 31 Mar 2025', generatedAt: '15 May 2025, 04:00 PM', status: 'Failed', format: 'PDF', size: '—', generatedBy: 'Priya Analyst' },
-  { id: 'RPT-2025-0150', type: 'Investigation', dateRange: 'Case CAS-0028', generatedAt: '12 May 2025, 01:15 PM', status: 'Ready', format: 'PDF', size: '3.2 MB', generatedBy: 'Ravi Investigator' },
-  { id: 'RPT-2025-0149', type: 'STR', dateRange: '01 Mar – 31 Mar 2025', generatedAt: '10 May 2025, 11:00 AM', status: 'Ready', format: 'Excel', size: '1.1 MB', generatedBy: 'Admin User' },
-  { id: 'RPT-2025-0148', type: 'Risk Assessment', dateRange: 'Mar 2025 Monthly', generatedAt: '05 May 2025, 09:30 AM', status: 'Ready', format: 'PDF', size: '4.3 MB', generatedBy: 'Admin User' },
-  { id: 'RPT-2025-0147', type: 'SAR', dateRange: '01 Feb – 28 Feb 2025', generatedAt: '01 May 2025, 10:00 AM', status: 'Ready', format: 'CSV', size: '760 KB', generatedBy: 'Priya Analyst' },
-];
-
-const SUMMARY_STATS = [
-  { label: 'Total Reports', value: 156, icon: <FileText size={20} />, color: '#F5A623', bg: 'rgba(245,166,35,0.1)', border: 'rgba(245,166,35,0.2)' },
-  { label: 'This Month', value: 23, icon: <Calendar size={20} />, color: '#3B82F6', bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.2)' },
-  { label: 'Pending', value: 3, icon: <Clock size={20} />, color: '#EAB308', bg: 'rgba(234,179,8,0.1)', border: 'rgba(234,179,8,0.2)' },
-  { label: 'Failed', value: 1, icon: <AlertCircle size={20} />, color: '#EF4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' },
-];
-
 // ─── Modal Component ───────────────────────────────────────────────────────────
 
 interface GenerateModalProps {
   reportType: ReportType;
   onClose: () => void;
+  onSuccess: () => void;
 }
 
-function GenerateModal({ reportType, onClose }: GenerateModalProps) {
+function GenerateModal({ reportType, onClose, onSuccess }: GenerateModalProps) {
   const [fromDate, setFromDate] = useState('2025-05-01');
   const [toDate, setToDate] = useState('2025-05-24');
   const [entityFilter, setEntityFilter] = useState('');
   const [riskThreshold, setRiskThreshold] = useState(75);
   const [format, setFormat] = useState<ReportFormat>('PDF');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setStatus('loading');
-    setTimeout(() => setStatus('success'), 2200);
+    setErrorMsg('');
+    try {
+      const user = getUser();
+      const generatedByName = user?.name || user?.username || 'Unknown User';
+      await apiPost('/api/reports', {
+        type: reportType,
+        date_range: `${fromDate} – ${toDate}`,
+        format,
+        generated_by_name: generatedByName,
+      });
+      setStatus('success');
+      onSuccess();
+    } catch (err: unknown) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to generate report');
+      setStatus('error');
+    }
   };
 
   return (
@@ -234,6 +247,12 @@ function GenerateModal({ reportType, onClose }: GenerateModalProps) {
               </div>
             </div>
 
+            {status === 'error' && (
+              <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: '#F87171', marginBottom: '8px' }}>
+                {errorMsg}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
               <button
                 className="it-btn it-btn-primary"
@@ -268,23 +287,37 @@ export default function ReportsPage() {
   const [modalType, setModalType] = useState<ReportType | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('All');
 
-  const filteredReports = filterStatus === 'All'
-    ? GENERATED_REPORTS
-    : GENERATED_REPORTS.filter(r => r.status === filterStatus);
+  const apiUrl = `/api/reports?status_filter=${filterStatus}`;
+  const { data, loading, error, refetch } = useApi<ReportsResponse>(apiUrl, [filterStatus]);
+
+  const reports: GeneratedReport[] = data?.reports ?? [];
+  const summary: ReportsSummary = data?.summary ?? { total: 0, this_month: 0, pending: 0, failed: 0 };
+  const lastGenerated: LastGenerated = data?.last_generated ?? {};
+
+  const handleModalSuccess = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
+  const summaryStats = [
+    { label: 'Total Reports', value: summary.total, icon: <FileText size={20} />, color: '#F5A623', bg: 'rgba(245,166,35,0.1)', border: 'rgba(245,166,35,0.2)' },
+    { label: 'This Month', value: summary.this_month, icon: <Calendar size={20} />, color: '#3B82F6', bg: 'rgba(59,130,246,0.1)', border: 'rgba(59,130,246,0.2)' },
+    { label: 'Pending', value: summary.pending, icon: <Clock size={20} />, color: '#EAB308', bg: 'rgba(234,179,8,0.1)', border: 'rgba(234,179,8,0.2)' },
+    { label: 'Failed', value: summary.failed, icon: <AlertCircle size={20} />, color: '#EF4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' },
+  ];
 
   return (
     <div className="it-app" style={{ background: 'var(--bg-page)', minHeight: '100vh', padding: '24px' }}>
       {/* ─── Header ─── */}
       <div className="it-page-header">
         <div>
-          <h1 className="it-page-heading">Reports & Compliance</h1>
+          <h1 className="it-page-heading">Reports &amp; Compliance</h1>
           <p className="it-page-subheading">Generate and manage regulatory reports across all formats</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="it-btn it-btn-outline it-btn-sm">
             <Filter size={14} /> Filter
           </button>
-          <button className="it-btn it-btn-outline it-btn-sm">
+          <button className="it-btn it-btn-outline it-btn-sm" onClick={() => refetch()}>
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
@@ -292,13 +325,15 @@ export default function ReportsPage() {
 
       {/* ─── Summary Stats ─── */}
       <div className="it-stat-grid" style={{ marginBottom: '28px' }}>
-        {SUMMARY_STATS.map(stat => (
+        {summaryStats.map(stat => (
           <div key={stat.label} className="it-card it-card-flat" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px' }}>
             <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: stat.bg, border: `1px solid ${stat.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: stat.color, flexShrink: 0 }}>
               {stat.icon}
             </div>
             <div>
-              <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{stat.value}</div>
+              <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>
+                {loading ? '—' : stat.value}
+              </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '3px' }}>{stat.label}</div>
             </div>
           </div>
@@ -311,47 +346,50 @@ export default function ReportsPage() {
           Report Templates
         </div>
         <div className="it-grid-2">
-          {REPORT_TYPES.map(rt => (
-            <div
-              key={rt.type}
-              style={{
-                background: 'var(--bg-card)',
-                border: `1px solid ${rt.borderColor}`,
-                borderRadius: '16px',
-                padding: '24px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                transition: 'all 0.2s ease',
-                cursor: 'pointer',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = rt.bgColor; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)'; }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <div style={{ color: rt.accentColor }}>{rt.icon}</div>
-                <span className={`it-badge ${rt.badgeClass}`} style={{ fontSize: '10px' }}>{rt.compliance}</span>
-              </div>
-              <div>
-                <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>{rt.title}</div>
-                <div style={{ fontSize: '12px', color: rt.accentColor, fontWeight: 600, marginBottom: '8px' }}>{rt.subtitle}</div>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{rt.description}</div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  <Clock size={11} />
-                  Last generated {rt.lastGenerated}
+          {REPORT_TYPES.map(rt => {
+            const lastGen = lastGenerated[rt.type];
+            return (
+              <div
+                key={rt.type}
+                style={{
+                  background: 'var(--bg-card)',
+                  border: `1px solid ${rt.borderColor}`,
+                  borderRadius: '16px',
+                  padding: '24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                  transition: 'all 0.2s ease',
+                  cursor: 'pointer',
+                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = rt.bgColor; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-card)'; }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                  <div style={{ color: rt.accentColor }}>{rt.icon}</div>
+                  <span className={`it-badge ${rt.badgeClass}`} style={{ fontSize: '10px' }}>{rt.compliance}</span>
                 </div>
-                <button
-                  className="it-btn it-btn-primary it-btn-sm"
-                  style={{ background: rt.accentColor, borderColor: rt.accentColor, color: '#000' }}
-                  onClick={() => setModalType(rt.type)}
-                >
-                  <FileText size={12} /> Generate
-                </button>
+                <div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '4px' }}>{rt.title}</div>
+                  <div style={{ fontSize: '12px', color: rt.accentColor, fontWeight: 600, marginBottom: '8px' }}>{rt.subtitle}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{rt.description}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                    <Clock size={11} />
+                    {loading ? 'Loading…' : lastGen ? `Last generated ${lastGen}` : 'Never generated'}
+                  </div>
+                  <button
+                    className="it-btn it-btn-primary it-btn-sm"
+                    style={{ background: rt.accentColor, borderColor: rt.accentColor, color: '#000' }}
+                    onClick={() => setModalType(rt.type)}
+                  >
+                    <FileText size={12} /> Generate
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -361,7 +399,7 @@ export default function ReportsPage() {
           <div>
             <span className="it-card-title">Generated Reports</span>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-              Showing {filteredReports.length} of {GENERATED_REPORTS.length} reports
+              {loading ? 'Loading…' : error ? 'Error loading reports' : `Showing ${reports.length} reports`}
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -384,114 +422,138 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <div className="it-table-wrap">
-          <table className="it-table">
-            <thead>
-              <tr>
-                <th>Report ID</th>
-                <th>Type</th>
-                <th>Date Range</th>
-                <th>Generated At</th>
-                <th>Generated By</th>
-                <th>Status</th>
-                <th>Format</th>
-                <th>Size</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredReports.map(report => (
-                <tr key={report.id}>
-                  <td className="it-td-mono" style={{ fontSize: '12px' }}>{report.id}</td>
-                  <td>
-                    <span style={{
-                      fontSize: '12px', fontWeight: 600,
-                      color: report.type === 'STR' ? '#F5A623' : report.type === 'SAR' ? '#60A5FA' : report.type === 'Investigation' ? '#A78BFA' : '#4ADE80',
-                    }}>
-                      {report.type}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: '12px' }}>{report.dateRange}</td>
-                  <td style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{report.generatedAt}</td>
-                  <td style={{ fontSize: '12px' }}>{report.generatedBy}</td>
-                  <td>
-                    {report.status === 'Ready' && (
-                      <span className="it-badge it-badge-low" style={{ fontSize: '10px' }}>
-                        <CheckCircle size={10} /> Ready
-                      </span>
-                    )}
-                    {report.status === 'Processing' && (
-                      <span className="it-badge it-badge-accent" style={{ fontSize: '10px' }}>
-                        <Loader size={10} style={{ animation: 'spin 1s linear infinite' }} /> Processing
-                      </span>
-                    )}
-                    {report.status === 'Failed' && (
-                      <span className="it-badge it-badge-critical" style={{ fontSize: '10px' }}>
-                        <AlertCircle size={10} /> Failed
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <span className="it-badge it-badge-neutral" style={{ fontSize: '10px' }}>
-                      {report.format}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{report.size}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                      {report.status === 'Ready' && (
-                        <>
-                          <button
-                            className="it-btn it-btn-outline it-btn-sm"
-                            onClick={() => console.log(`Downloading PDF: ${report.id}`)}
-                            title="Download PDF"
-                            style={{ padding: '4px 10px', fontSize: '11px' }}
-                          >
-                            <Download size={11} /> PDF
-                          </button>
-                          <button
-                            className="it-btn it-btn-outline it-btn-sm"
-                            onClick={() => console.log(`Downloading CSV: ${report.id}`)}
-                            title="Download CSV"
-                            style={{ padding: '4px 10px', fontSize: '11px' }}
-                          >
-                            <Download size={11} /> CSV
-                          </button>
-                        </>
-                      )}
-                      {report.status === 'Failed' && (
-                        <button
-                          className="it-btn it-btn-outline it-btn-sm"
-                          onClick={() => console.log(`Retrying: ${report.id}`)}
-                          style={{ padding: '4px 10px', fontSize: '11px' }}
-                        >
-                          <RefreshCw size={11} /> Retry
-                        </button>
-                      )}
-                      {report.status === 'Processing' && (
-                        <button
-                          className="it-btn it-btn-ghost it-btn-sm"
-                          style={{ padding: '4px 10px', fontSize: '11px', opacity: 0.5, cursor: 'default' }}
-                          disabled
-                        >
-                          <Loader size={11} /> In Progress
-                        </button>
-                      )}
-                      <button
-                        className="it-btn it-btn-ghost it-btn-sm"
-                        style={{ padding: '4px 8px' }}
-                        onClick={() => console.log(`Viewing: ${report.id}`)}
-                        title="View Details"
-                      >
-                        <Eye size={12} />
-                      </button>
-                    </div>
-                  </td>
+        {error && (
+          <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '16px', textAlign: 'center', color: '#F87171', fontSize: '13px', marginBottom: '16px' }}>
+            <AlertCircle size={16} style={{ display: 'inline', marginRight: '6px' }} />
+            {error}
+          </div>
+        )}
+
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+            <Loader size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
+            <div style={{ fontSize: '13px' }}>Loading reports…</div>
+          </div>
+        )}
+
+        {!loading && !error && (
+          <div className="it-table-wrap">
+            <table className="it-table">
+              <thead>
+                <tr>
+                  <th>Report ID</th>
+                  <th>Type</th>
+                  <th>Date Range</th>
+                  <th>Generated At</th>
+                  <th>Generated By</th>
+                  <th>Status</th>
+                  <th>Format</th>
+                  <th>Size</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {reports.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      No reports found for the selected filter.
+                    </td>
+                  </tr>
+                ) : (
+                  reports.map(report => (
+                    <tr key={report.id}>
+                      <td className="it-td-mono" style={{ fontSize: '12px' }}>{report.id}</td>
+                      <td>
+                        <span style={{
+                          fontSize: '12px', fontWeight: 600,
+                          color: report.type === 'STR' ? '#F5A623' : report.type === 'SAR' ? '#60A5FA' : report.type === 'Investigation' ? '#A78BFA' : '#4ADE80',
+                        }}>
+                          {report.type}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '12px' }}>{report.date_range}</td>
+                      <td style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{report.generated_at}</td>
+                      <td style={{ fontSize: '12px' }}>{report.generated_by_name}</td>
+                      <td>
+                        {report.status === 'Ready' && (
+                          <span className="it-badge it-badge-low" style={{ fontSize: '10px' }}>
+                            <CheckCircle size={10} /> Ready
+                          </span>
+                        )}
+                        {report.status === 'Processing' && (
+                          <span className="it-badge it-badge-accent" style={{ fontSize: '10px' }}>
+                            <Loader size={10} style={{ animation: 'spin 1s linear infinite' }} /> Processing
+                          </span>
+                        )}
+                        {report.status === 'Failed' && (
+                          <span className="it-badge it-badge-critical" style={{ fontSize: '10px' }}>
+                            <AlertCircle size={10} /> Failed
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="it-badge it-badge-neutral" style={{ fontSize: '10px' }}>
+                          {report.format}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{report.file_size ?? '—'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                          {report.status === 'Ready' && (
+                            <>
+                              <button
+                                className="it-btn it-btn-outline it-btn-sm"
+                                onClick={() => console.log(`Downloading PDF: ${report.id}`)}
+                                title="Download PDF"
+                                style={{ padding: '4px 10px', fontSize: '11px' }}
+                              >
+                                <Download size={11} /> PDF
+                              </button>
+                              <button
+                                className="it-btn it-btn-outline it-btn-sm"
+                                onClick={() => console.log(`Downloading CSV: ${report.id}`)}
+                                title="Download CSV"
+                                style={{ padding: '4px 10px', fontSize: '11px' }}
+                              >
+                                <Download size={11} /> CSV
+                              </button>
+                            </>
+                          )}
+                          {report.status === 'Failed' && (
+                            <button
+                              className="it-btn it-btn-outline it-btn-sm"
+                              onClick={() => console.log(`Retrying: ${report.id}`)}
+                              style={{ padding: '4px 10px', fontSize: '11px' }}
+                            >
+                              <RefreshCw size={11} /> Retry
+                            </button>
+                          )}
+                          {report.status === 'Processing' && (
+                            <button
+                              className="it-btn it-btn-ghost it-btn-sm"
+                              style={{ padding: '4px 10px', fontSize: '11px', opacity: 0.5, cursor: 'default' }}
+                              disabled
+                            >
+                              <Loader size={11} /> In Progress
+                            </button>
+                          )}
+                          <button
+                            className="it-btn it-btn-ghost it-btn-sm"
+                            style={{ padding: '4px 8px' }}
+                            onClick={() => console.log(`Viewing: ${report.id}`)}
+                            title="View Details"
+                          >
+                            <Eye size={12} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div className="it-pagination">
           <button className="it-page-btn" disabled>‹</button>
@@ -507,6 +569,7 @@ export default function ReportsPage() {
         <GenerateModal
           reportType={modalType}
           onClose={() => setModalType(null)}
+          onSuccess={handleModalSuccess}
         />
       )}
 
