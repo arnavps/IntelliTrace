@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Bell, Settings, ChevronDown, LogOut, User, Shield } from 'lucide-react'
 
 interface TopbarProps {
@@ -20,6 +21,12 @@ function getInitials(name: string): string {
 export function Topbar({ title, subtitle, userName, userRole }: TopbarProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    localStorage.removeItem('user')
+    navigate('/')
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -108,7 +115,10 @@ export function Topbar({ title, subtitle, userName, userRole }: TopbarProps) {
                 </button>
               </div>
               <div className="border-t border-[#2A2A2A] py-1">
-                <button className="w-full flex items-center gap-3 px-4 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-sm transition">
+                <button 
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 text-sm transition"
+                >
                   <LogOut size={14} />
                   <span>Sign Out</span>
                 </button>

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Activity,
@@ -138,6 +139,22 @@ function CustomTooltip({ active, payload, label }: {
 
 export function DashboardPage() {
   const navigate = useNavigate()
+  const [userName, setUserName] = useState('User')
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user')
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr)
+        if (user.name) {
+          const firstName = user.name.split(' ')[0]
+          setUserName(firstName)
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+  }, [])
 
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -150,7 +167,7 @@ export function DashboardPage() {
       <div className="it-page-header" style={{ marginBottom: 28 }}>
         <div>
           <h1 className="it-page-heading">Dashboard</h1>
-          <p className="it-page-subheading">Good morning, Arjun &nbsp;·&nbsp; {today}</p>
+          <p className="it-page-subheading">Good morning, {userName} &nbsp;·&nbsp; {today}</p>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="it-btn it-btn-outline it-btn-sm" onClick={() => navigate('/reports')}>

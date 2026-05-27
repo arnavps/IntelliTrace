@@ -3,11 +3,30 @@ import { useNavigate } from 'react-router-dom'
 
 export function LoginPage({ onNavigate }: { onNavigate: (p: string) => void }) {
   const [form, setForm] = useState({ email: '', password: '' })
+  const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    navigate('/dashboard')
+    setError('')
+    try {
+      const res = await fetch('http://localhost:8000/api/auth/signin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form)
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.detail || 'Login failed')
+      }
+      const data = await res.json()
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user))
+      }
+      navigate('/dashboard')
+    } catch (err: any) {
+      setError(err.message)
+    }
   }
 
   return (
@@ -21,6 +40,8 @@ export function LoginPage({ onNavigate }: { onNavigate: (p: string) => void }) {
 
         <h1 className="fn-auth-title">Welcome back</h1>
         <p className="fn-auth-subtitle">Sign in to your IntelliTrace account</p>
+
+        {error && <div style={{ padding: '10px', background: 'rgba(255, 0, 0, 0.1)', color: 'red', borderRadius: '5px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="fn-input-group">
@@ -86,12 +107,34 @@ export function LoginPage({ onNavigate }: { onNavigate: (p: string) => void }) {
 export function SignupPage({ onNavigate }: { onNavigate: (p: string) => void }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', plan: 'starter' })
   const [step, setStep] = useState(1)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (step === 1) setStep(2)
-    else navigate('/dashboard')
+    setError('')
+    if (step === 1) {
+      setStep(2)
+    } else {
+      try {
+        const res = await fetch('http://localhost:8000/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form)
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.detail || 'Signup failed')
+        }
+        const data = await res.json()
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user))
+        }
+        navigate('/dashboard')
+      } catch (err: any) {
+        setError(err.message)
+      }
+    }
   }
 
   return (
@@ -116,6 +159,8 @@ export function SignupPage({ onNavigate }: { onNavigate: (p: string) => void }) 
 
         <h1 className="fn-auth-title">{step === 1 ? 'Create your account' : 'Choose your plan'}</h1>
         <p className="fn-auth-subtitle">{step === 1 ? '14-day free trial. No credit card required.' : 'You can upgrade or change at any time.'}</p>
+
+        {error && <div style={{ padding: '10px', background: 'rgba(255, 0, 0, 0.1)', color: 'red', borderRadius: '5px', marginBottom: '16px', fontSize: '13px' }}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
           {step === 1 ? (
