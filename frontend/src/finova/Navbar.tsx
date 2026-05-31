@@ -50,9 +50,8 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
           {/* Actions */}
           <div className="fn-nav-actions">
             <button
-              className="fn-nav-link"
+              className="fn-nav-link fn-desktop-only"
               onClick={() => handleNav('Login')}
-              style={{ display: 'none', ...{ ['@media (min-width: 768px)']: { display: 'inline' } } }}
             >
               Login
             </button>
