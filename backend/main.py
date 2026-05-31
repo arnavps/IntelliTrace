@@ -5,6 +5,19 @@ import os
 sys.path.insert(0, os.path.abspath("src"))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "src")))
 
+# ── Python 3.13 / tf_keras compatibility guard ────────────────────────────────
+# SHAP's TreeExplainer calls is_transformers_lm() which lazy-imports transformers
+# → TensorFlow → tf_keras, crashing on Python 3.13 via inspect.stack().
+# Stub the module so SHAP's isinstance check short-circuits safely.
+import types as _types
+if "transformers" not in sys.modules:
+    _t_stub = _types.ModuleType("transformers")
+    _t_stub.PreTrainedModel   = None   # type: ignore[attr-defined]
+    _t_stub.TFPreTrainedModel = None   # type: ignore[attr-defined]
+    _t_stub.FlaxPreTrainedModel = None # type: ignore[attr-defined]
+    sys.modules["transformers"] = _t_stub
+# ── End guard ─────────────────────────────────────────────────────────────────
+
 # ── Suppress noisy TensorFlow / oneDNN startup messages ──────────────────────
 os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
