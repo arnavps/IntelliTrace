@@ -99,7 +99,7 @@ export function Sidebar({ userRole, userName }: SidebarProps) {
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
-                    className={({ isActive }) =>
+                    className={({ isActive }: { isActive: boolean }) =>
                       [
                         'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150 w-full group',
                         isActive
