@@ -13,24 +13,13 @@ import {
   Plus,
   ChevronLeft,
   ChevronRight,
-  Loader2,
 } from 'lucide-react';
 import '../styles/dashboard.css';
 import { useApi } from '../../hooks/useApi';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type RiskLevel = 'critical' | 'high' | 'medium' | 'low';
-type AlertStatus = 'Open' | 'Under Review' | 'Resolved' | 'False Positive';
-type AlertType =
-  | 'Smurfing'
-  | 'Round-Tripping'
-  | 'Rapid Layering'
-  | 'Dormant Activation'
-  | 'Profile Mismatch'
-  | 'Cross-Border Alert'
-  | 'Structuring'
-  | string;
+
 
 interface ApiAlert {
   id: string;

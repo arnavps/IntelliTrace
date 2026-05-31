@@ -11,7 +11,6 @@ import {
   ChevronDown,
   ChevronUp,
   Paperclip,
-  MessageSquare,
   Send,
   Clock,
   User,

@@ -1,10 +1,24 @@
+import sys
+import os
+
+# ── Path must be set up BEFORE any intellitrace imports ───────────────────────
+sys.path.insert(0, os.path.abspath("src"))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "src")))
+
+# ── Suppress noisy TensorFlow / oneDNN startup messages ──────────────────────
+os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
+
+import logging
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
+logging.getLogger("absl").setLevel(logging.ERROR)
+
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
-import sys
-import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from passlib.context import CryptContext
@@ -12,33 +26,43 @@ from dotenv import load_dotenv
 from datetime import datetime
 import numpy as np
 
-import sys
-import os
-sys.path.insert(0, os.path.abspath("src"))
+load_dotenv()
 
-# IntelliTrace Modules
+# ── IntelliTrace Core Modules ─────────────────────────────────────────────────
 from intellitrace.schema import IUTSModel
 from intellitrace.security import PIISecurityBoundary
 from intellitrace.entity_resolution import EntityResolutionEngine
-from intellitrace.streaming import SmurfingPatternDetector, RapidLayeringAnalyzer
 from intellitrace.risk_engine import XGBoostRiskEngine
-from intellitrace.explainability import SHAPExplainabilityEngine
 from intellitrace.insider_threat import InsiderThreatFusionLayer
 from intellitrace.str_compiler import FIUINDReportCompiler
 
-load_dotenv()
+# Streaming classes — guarded because pyflink is optional on Windows
+try:
+    from intellitrace.streaming import SmurfingPatternDetector, RapidLayeringAnalyzer
+except Exception:
+    SmurfingPatternDetector = None
+    RapidLayeringAnalyzer = None
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "src")))
+# SHAP is lazy-imported at runtime to avoid cv2/opencv crash at module load
+SHAPExplainabilityEngine = None
 
 try:
     from intellitrace import __version__
 except ImportError:
     __version__ = "1.0.0"
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Modern FastAPI lifespan handler — replaces deprecated on_event('startup')."""
+    init_db()
+    yield
+    # shutdown logic can go here if needed
+
 app = FastAPI(
     title="IntelliTrace Backend API",
     description="Backend API for IntelliTrace Analytics and Streaming",
-    version=__version__
+    version=__version__,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -757,7 +781,7 @@ pii_boundary = PIISecurityBoundary(secret_key=master_pepper_key)
 # Initialize Core Algorithms (Module 2, 3, 4, 5)
 entity_resolution_engine = EntityResolutionEngine()
 risk_engine = XGBoostRiskEngine()
-# Bypass untrainged model exception for integration routing
+# Bypass untrained model exception for integration routing
 if risk_engine.model is None:
     import xgboost as xgb
     from sklearn.datasets import make_classification
@@ -765,7 +789,13 @@ if risk_engine.model is None:
     X_mock, y_mock = make_classification(n_samples=100, n_features=163, random_state=42)
     risk_engine.train(X_mock, y_mock)
 
-shap_interpreter = SHAPExplainabilityEngine(model=risk_engine.model)
+# Lazy-load SHAP to avoid cv2/opencv crash at import time
+try:
+    from intellitrace.explainability import SHAPExplainabilityEngine as _SHAP
+    shap_interpreter = _SHAP(model=risk_engine.model)
+except Exception as _shap_err:
+    print(f"[WARNING] SHAP explainability disabled: {_shap_err}")
+    shap_interpreter = None
 insider_fusion = InsiderThreatFusionLayer()
 xml_compiler = FIUINDReportCompiler(reporting_entity_id="HDFCB001", reporting_entity_name="HDFC Bank")
 
@@ -799,8 +829,15 @@ def ingest_transaction(payload: IUTSModel):
         
         # Trigger post-hoc explainability if high risk
         shap_explanations = None
-        if risk_score > 75.0:
-            shap_explanations = shap_interpreter.explain_prediction(feature_vector)
+        if risk_score > 75.0 and shap_interpreter is not None:
+            try:
+                # Generate generic feature names for the 163-dim vector
+                feat_names = [f"feature_{i}" for i in range(163)]
+                shap_explanations = shap_interpreter.explain_transaction(
+                    str(tokenized_payload.txn_id), feature_vector, feat_names
+                )
+            except Exception as _e:
+                shap_explanations = None
             
         # Layer 5: Insider Threat Fusion & Compliance
         final_risk_state = "High" if risk_score > 75.0 else "Low"
@@ -1028,9 +1065,8 @@ def read_root():
 def health_check():
     return {"status": "ok"}
 
-@app.on_event("startup")
-def startup_event():
-    init_db()
+# Startup is handled by the lifespan context manager above.
+# The on_event("startup") decorator has been replaced to eliminate the deprecation warning.
 
 if __name__ == "__main__":
     print("Starting IntelliTrace backend server on port 8000...")

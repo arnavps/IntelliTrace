@@ -361,7 +361,7 @@ export function DashboardPage() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: unknown, name: unknown) => [`${value}%`, name]}
+                    formatter={((value: unknown, name: unknown) => [`${value}%`, name]) as any}
                     contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, fontSize: 12 }}
                     itemStyle={{ color: '#fff' }}
                     labelStyle={{ color: '#999' }}

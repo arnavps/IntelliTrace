@@ -13,7 +13,6 @@ import { useApi } from '../../hooks/useApi'
 /* ─── Types ─────────────────────────────────────────────────────── */
 
 type Risk      = 'Critical' | 'High' | 'Medium' | 'Low'
-type TxnStatus = 'Flagged' | 'Cleared' | 'Under Review' | 'Processing'
 
 interface Transaction {
   id: string
