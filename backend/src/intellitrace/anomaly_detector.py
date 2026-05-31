@@ -34,7 +34,7 @@ class UnsupervisedAnomalyDetector:
             contamination=self.contamination,
             max_features=1.0,
             bootstrap=False,
-            n_jobs=-1,
+            n_jobs=1,
             random_state=42
         )
         
@@ -130,12 +130,12 @@ class UnsupervisedAnomalyDetector:
             if np.any(valid_cluster_mask):
                 cluster_points = self._baseline_outliers[valid_cluster_mask]
                 
-                # Highly vectorized Euclidean distance computation
+                # Highly vectorized squared Euclidean distance computation
                 diff = cluster_points - feature_vector
-                distances = np.linalg.norm(diff, axis=1)
+                squared_distances = np.sum(diff ** 2, axis=1)
                 
                 # Verify if node connects to a coordinated, unmapped fraud cluster neighborhood
-                if np.min(distances) <= self.dbscan_eps:
+                if np.min(squared_distances) <= (self.dbscan_eps ** 2):
                     belongs_to_fraud_cluster = True
         
         return {

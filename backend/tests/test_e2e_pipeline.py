@@ -8,6 +8,29 @@ import numpy as np
 import xgboost as xgb
 from typing import Generator, Dict, Any, List
 
+# ---------------------------------------------------------------------------
+# Guard: skip the entire module if Docker daemon is not reachable.
+# This prevents import-time failures in CI environments without Docker.
+# ---------------------------------------------------------------------------
+def _docker_is_available() -> bool:
+    """Return True only when the Docker daemon socket / named pipe is reachable."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["docker", "info"],
+            capture_output=True,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+if not _docker_is_available():
+    pytest.skip(
+        "Docker daemon is not running – E2E container tests skipped.",
+        allow_module_level=True,
+    )
+
 # Testcontainers for isolated distributed components
 from testcontainers.kafka import KafkaContainer
 from testcontainers.neo4j import Neo4jContainer

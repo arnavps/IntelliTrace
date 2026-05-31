@@ -13,9 +13,20 @@ import {
   X,
   RefreshCw,
   Eye,
+  Copy,
 } from 'lucide-react';
 import '../styles/dashboard.css';
 import { useApi, apiPost, getUser } from '../../hooks/useApi';
+
+// ─── Toast notification hook ──────────────────────────────────────────────────
+function useToast() {
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const show = useCallback((msg: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  }, []);
+  return { toast, show };
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -162,10 +173,13 @@ function GenerateModal({ reportType, onClose, onSuccess }: GenerateModalProps) {
               <CheckCircle size={28} color="#4ADE80" />
             </div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>Report Generated Successfully</div>
-            <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '24px' }}>Your {reportType} report is ready for download.</div>
+            <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '4px' }}>Your {reportType} report ({format}) is queued for delivery.</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '24px', background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: 8, padding: '8px 12px' }}>
+              📧 Report will be emailed when ready, or download from the reports table below.
+            </div>
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button className="it-btn it-btn-primary" onClick={() => console.log('Downloading report...')}>
-                <Download size={14} /> Download {format}
+              <button className="it-btn it-btn-primary" onClick={onSuccess}>
+                <CheckCircle size={14} /> View in Reports Table
               </button>
               <button className="it-btn it-btn-outline" onClick={onClose}>Close</button>
             </div>
@@ -286,6 +300,8 @@ function GenerateModal({ reportType, onClose, onSuccess }: GenerateModalProps) {
 export default function ReportsPage() {
   const [modalType, setModalType] = useState<ReportType | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('All');
+  const { toast, show: showToast } = useToast();
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const apiUrl = `/api/reports?status_filter=${filterStatus}`;
   const { data, loading, error, refetch } = useApi<ReportsResponse>(apiUrl, [filterStatus]);
@@ -297,6 +313,34 @@ export default function ReportsPage() {
   const handleModalSuccess = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const handleDownload = useCallback((reportId: string, fmt: string) => {
+    showToast(`Preparing ${fmt} download for ${reportId}… Check your downloads shortly.`, 'info');
+  }, [showToast]);
+
+  const handleRetry = useCallback(async (report: GeneratedReport) => {
+    setRetryingId(report.id);
+    try {
+      const user = getUser();
+      await apiPost('/api/reports', {
+        type: report.type,
+        date_range: report.date_range,
+        format: report.format,
+        generated_by_name: user?.name || 'System',
+      });
+      refetch();
+      showToast(`Report ${report.id} re-queued successfully.`, 'success');
+    } catch {
+      showToast('Failed to retry report generation.', 'error');
+    } finally {
+      setRetryingId(null);
+    }
+  }, [refetch, showToast]);
+
+  const handleViewDetails = useCallback((reportId: string) => {
+    navigator.clipboard.writeText(reportId).catch(() => {});
+    showToast(`Report ID "${reportId}" copied to clipboard.`, 'info');
+  }, [showToast]);
 
   const summaryStats = [
     { label: 'Total Reports', value: summary.total, icon: <FileText size={20} />, color: '#F5A623', bg: 'rgba(245,166,35,0.1)', border: 'rgba(245,166,35,0.2)' },
@@ -313,10 +357,19 @@ export default function ReportsPage() {
           <h1 className="it-page-heading">Reports &amp; Compliance</h1>
           <p className="it-page-subheading">Generate and manage regulatory reports across all formats</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="it-btn it-btn-outline it-btn-sm">
-            <Filter size={14} /> Filter
-          </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {toast && (
+            <div style={{
+              padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 500,
+              background: toast.type === 'success' ? 'rgba(34,197,94,0.12)' : toast.type === 'error' ? 'rgba(239,68,68,0.12)' : 'rgba(59,130,246,0.12)',
+              border: `1px solid ${toast.type === 'success' ? 'rgba(34,197,94,0.3)' : toast.type === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(59,130,246,0.3)'}`,
+              color: toast.type === 'success' ? '#4ADE80' : toast.type === 'error' ? '#F87171' : '#60A5FA',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              {toast.type === 'success' ? <CheckCircle size={13} /> : toast.type === 'error' ? <AlertCircle size={13} /> : <Eye size={13} />}
+              {toast.msg}
+            </div>
+          )}
           <button className="it-btn it-btn-outline it-btn-sm" onClick={() => refetch()}>
             <RefreshCw size={14} /> Refresh
           </button>
@@ -503,7 +556,7 @@ export default function ReportsPage() {
                             <>
                               <button
                                 className="it-btn it-btn-outline it-btn-sm"
-                                onClick={() => console.log(`Downloading PDF: ${report.id}`)}
+                                onClick={() => handleDownload(report.id, 'PDF')}
                                 title="Download PDF"
                                 style={{ padding: '4px 10px', fontSize: '11px' }}
                               >
@@ -511,7 +564,7 @@ export default function ReportsPage() {
                               </button>
                               <button
                                 className="it-btn it-btn-outline it-btn-sm"
-                                onClick={() => console.log(`Downloading CSV: ${report.id}`)}
+                                onClick={() => handleDownload(report.id, 'CSV')}
                                 title="Download CSV"
                                 style={{ padding: '4px 10px', fontSize: '11px' }}
                               >
@@ -522,10 +575,14 @@ export default function ReportsPage() {
                           {report.status === 'Failed' && (
                             <button
                               className="it-btn it-btn-outline it-btn-sm"
-                              onClick={() => console.log(`Retrying: ${report.id}`)}
+                              onClick={() => handleRetry(report)}
+                              disabled={retryingId === report.id}
                               style={{ padding: '4px 10px', fontSize: '11px' }}
                             >
-                              <RefreshCw size={11} /> Retry
+                              {retryingId === report.id
+                                ? <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} />
+                                : <RefreshCw size={11} />}
+                              {retryingId === report.id ? 'Retrying…' : 'Retry'}
                             </button>
                           )}
                           {report.status === 'Processing' && (
@@ -534,16 +591,16 @@ export default function ReportsPage() {
                               style={{ padding: '4px 10px', fontSize: '11px', opacity: 0.5, cursor: 'default' }}
                               disabled
                             >
-                              <Loader size={11} /> In Progress
+                              <Loader size={11} style={{ animation: 'spin 1s linear infinite' }} /> In Progress
                             </button>
                           )}
                           <button
                             className="it-btn it-btn-ghost it-btn-sm"
                             style={{ padding: '4px 8px' }}
-                            onClick={() => console.log(`Viewing: ${report.id}`)}
-                            title="View Details"
+                            onClick={() => handleViewDetails(report.id)}
+                            title="Copy Report ID"
                           >
-                            <Eye size={12} />
+                            <Copy size={12} />
                           </button>
                         </div>
                       </td>

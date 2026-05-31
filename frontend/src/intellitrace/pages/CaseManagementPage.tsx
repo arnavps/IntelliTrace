@@ -22,6 +22,7 @@ import {
   Loader,
   FolderOpen,
   X,
+  Sparkles,
 } from 'lucide-react';
 import '../styles/dashboard.css';
 import { useApi, apiPost, apiPatch, getUser } from '../../hooks/useApi';
@@ -286,8 +287,22 @@ function CaseDrawer({ caseId, onClose, onCaseUpdated }: CaseDrawerProps) {
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [generatingNarrative, setGeneratingNarrative] = useState(false);
 
   const { data: caseDetail, loading, error, refetch } = useApi<CaseDetail>(`/api/cases/${caseId}`, [caseId]);
+
+  const handleGenerateNarrative = useCallback(async () => {
+    setGeneratingNarrative(true);
+    try {
+      await apiPost(`/api/cases/${caseId}/generate_narrative`, {});
+      refetch();
+      onCaseUpdated();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to generate AI narrative');
+    } finally {
+      setGeneratingNarrative(false);
+    }
+  }, [caseId, refetch, onCaseUpdated]);
 
   const handleAddNote = useCallback(async () => {
     if (!newNote.trim()) return;
@@ -485,6 +500,25 @@ function CaseDrawer({ caseId, onClose, onCaseUpdated }: CaseDrawerProps) {
             </button>
             <button className="it-btn it-btn-outline it-btn-sm" style={{ justifyContent: 'flex-start', width: '100%' }}>
               <Download size={13} /> Export Report
+            </button>
+            <button
+              className="it-btn it-btn-outline it-btn-sm"
+              style={{
+                justifyContent: 'flex-start',
+                width: '100%',
+                background: 'rgba(167,139,250,0.1)',
+                color: '#C084FC',
+                borderColor: 'rgba(167,139,250,0.3)',
+              }}
+              onClick={handleGenerateNarrative}
+              disabled={generatingNarrative}
+            >
+              {generatingNarrative ? (
+                <Loader size={13} style={{ animation: 'spin 1s linear infinite', marginRight: 6 }} />
+              ) : (
+                <Sparkles size={13} style={{ marginRight: 6 }} />
+              )}
+              {generatingNarrative ? 'Generating AI Narrative…' : 'Generate AI Narrative'}
             </button>
             {caseDetail.status !== 'Closed' && (
               <button

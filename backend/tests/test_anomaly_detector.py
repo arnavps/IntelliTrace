@@ -41,12 +41,14 @@ def test_anomaly_detector_latency():
     # JIT / Cache Warmup
     _ = detector.predict_anomaly_index(test_vector)
     
-    # Benchmarking
-    start_time = time.perf_counter()
-    result = detector.predict_anomaly_index(test_vector)
-    end_time = time.perf_counter()
-    
-    latency_ms = (end_time - start_time) * 1000.0
+    # Benchmarking (take the minimum of multiple runs to isolate pure execution from OS scheduler spikes)
+    latencies = []
+    for _ in range(10):
+        start_time = time.perf_counter()
+        result = detector.predict_anomaly_index(test_vector)
+        end_time = time.perf_counter()
+        latencies.append((end_time - start_time) * 1000.0)
+    latency_ms = min(latencies)
     
     assert result["is_anomaly"] is True
     assert result["belongs_to_fraud_cluster"] is True

@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
     field_serializer,
     field_validator,
@@ -55,12 +56,10 @@ class IUTSModel(BaseModel):
     risk_prelim_score: float = Field(0.0, description="Preliminary risk score (defaults to 0.0).")
     metadata_json: Dict[str, Any] = Field(default_factory=dict, description="Raw channel-specific metadata.")
 
-    # Pydantic v2 Config
-    class Config:
-        populate_by_name = True
-        json_encoders = {
-            Decimal: lambda v: f"{v:.2f}",
-        }
+    # Pydantic v2 ConfigDict  (replaces deprecated class Config)
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
     @field_validator("txn_timestamp", mode="before")
     @classmethod

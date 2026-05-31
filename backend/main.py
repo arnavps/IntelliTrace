@@ -51,6 +51,9 @@ try:
 except ImportError:
     __version__ = "1.0.0"
 
+from intellitrace.anomaly_detector import UnsupervisedAnomalyDetector
+from intellitrace.narrative_generator import ProsecutorialNarrativeGenerator
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Modern FastAPI lifespan handler — replaces deprecated on_event('startup')."""
@@ -93,7 +96,7 @@ def init_db():
         print("WARNING: NEON_DATABASE_URL not set. Skipping DB init.")
         return
     try:
-        conn = psycopg2.connect(db_url)
+        conn = psycopg2.connect(db_url, connect_timeout=5)
         cur = conn.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -205,9 +208,59 @@ def init_db():
         conn.close()
         print("[OK] Database initialized successfully.")
     except Exception as e:
-        print(f"[X] Error initializing database: {e}")
+        print(f"[WARN] Database unavailable, starting without DB: {e}")
 
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"[WARN] init_db failed: {e}")
+
+# ─── AI Anomaly Detector & OpenRouter Narrative Generator ─────────────────────
+anomaly_detector = UnsupervisedAnomalyDetector()
+
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+narrative_generator = None
+if OPENROUTER_API_KEY:
+    try:
+        narrative_generator = ProsecutorialNarrativeGenerator(api_key=OPENROUTER_API_KEY)
+        print("[OK] AI Narrative Generator initialized successfully.")
+    except Exception as e:
+        print(f"[WARN] Narrative Generator init failed: {e}")
+
+def train_anomaly_detector():
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT amount, channel, transaction_time FROM transactions LIMIT 500")
+        rows = cur.fetchall()
+        cur.close(); conn.close()
+        
+        if not rows:
+            print("[WARN] No transactions found for training baseline. Using simulated baseline.")
+            X = np.random.rand(100, 5)
+        else:
+            X = []
+            channels_map = {"UPI": 0, "NEFT": 1, "RTGS": 2, "IMPS": 3, "SWIFT": 4, "NACH": 5}
+            for row in rows:
+                amt = float(row["amount"]) / 10000000.0  # scale w.r.t 1 Cr
+                channel_code = channels_map.get(row["channel"], 0) / 5.0
+                t = row["transaction_time"]
+                hour = t.hour / 23.0
+                dow = t.weekday() / 6.0
+                is_night = 1.0 if (t.hour >= 23 or t.hour < 5) else 0.0
+                X.append([amt, hour, dow, channel_code, is_night])
+            X = np.array(X)
+        
+        meta = anomaly_detector.train_baseline(X)
+        print(f"[OK] Anomaly Detector baseline trained successfully: {meta}")
+    except Exception as e:
+        print(f"[WARN] Failed to train Anomaly Detector baseline: {e}. Using simulated baseline.")
+        anomaly_detector.train_baseline(np.random.rand(100, 5))
+
+try:
+    train_anomaly_detector()
+except Exception as e:
+    print(f"[WARN] train_anomaly_detector wrapper failed: {e}")
 
 # ─── Password Hashing ────────────────────────────────────────────────────────
 
@@ -272,6 +325,14 @@ class UserCreate(BaseModel):
     email: EmailStr
     role: str = "Analyst"
     password: str = "Temp@12345"
+
+class TransactionStreamInput(BaseModel):
+    sender_name: str
+    sender_account: str
+    receiver_name: str
+    receiver_account: str
+    amount: int
+    channel: str
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -438,6 +499,72 @@ def get_transactions(
             t["time"] = t["transaction_time"].strftime("%I:%M %p") if t["transaction_time"] else ""
             txns.append(t)
         return {"transactions": txns, "total": total, "page": page, "limit": limit}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/transactions/stream")
+def stream_transaction(data: TransactionStreamInput):
+    try:
+        # Convert inputs to the 5-D feature vector
+        channels_map = {"UPI": 0, "NEFT": 1, "RTGS": 2, "IMPS": 3, "SWIFT": 4, "NACH": 5}
+        amt = float(data.amount) / 10000000.0
+        channel_code = channels_map.get(data.channel, 0) / 5.0
+        t = datetime.now()  # Current time for streaming txn
+        hour = t.hour / 23.0
+        dow = t.weekday() / 6.0
+        is_night = 1.0 if (t.hour >= 23 or t.hour < 5) else 0.0
+        
+        feature_vector = np.array([amt, hour, dow, channel_code, is_night])
+        
+        # Predict anomaly
+        res = anomaly_detector.predict_anomaly_index(feature_vector)
+        
+        risk_score = round(res["anomaly_score"], 2)
+        risk_level = "low"
+        if risk_score >= 80:
+            risk_level = "critical"
+        elif risk_score >= 60:
+            risk_level = "high"
+        elif risk_score >= 30:
+            risk_level = "medium"
+            
+        status = "Cleared"
+        if res["is_anomaly"]:
+            status = "Flagged"
+            
+        # Insert into database
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        import random
+        txn_id = f"TXN-{t.year}-{random.randint(100000, 999999)}"
+        cur.execute("""
+            INSERT INTO transactions (id, sender_name, sender_account, receiver_name, receiver_account, amount, channel, risk_score, risk_level, status, transaction_time)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING *
+        """, (txn_id, data.sender_name, data.sender_account, data.receiver_name, data.receiver_account, data.amount, data.channel, risk_score, risk_level, status, t))
+        txn = dict(cur.fetchone())
+        
+        # If flagged, automatically create an alert
+        if res["is_anomaly"]:
+            alert_id = f"ALT-{random.randint(10000, 99999)}"
+            atype = "Unsupervised Anomaly Detected"
+            if res["belongs_to_fraud_cluster"]:
+                atype = "Coordinated Spatial Fraud Cluster Anomaly"
+                
+            desc = f"Transaction from {data.sender_name} to {data.receiver_name} flagged by AI Anomaly Detector. Amount: {format_inr(data.amount)}."
+            flag_reason = f"Isolation Forest Anomaly (Risk Score: {risk_score}). DBSCAN cluster link: {res['belongs_to_fraud_cluster']}"
+            cur.execute("""
+                INSERT INTO alerts (id, type, account_id, amount, risk_score, risk_level, status, description, flag_reason, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (alert_id, atype, data.sender_account, data.amount, int(risk_score), risk_level, "Open", desc, flag_reason, t, t))
+            
+        conn.commit()
+        cur.close(); conn.close()
+        
+        return {
+            "transaction": txn,
+            "ai_evaluation": res
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -678,6 +805,96 @@ def add_case_note(case_id: str, note: NoteCreate):
         cur.close(); conn.close()
         new_note["time"] = new_note["created_at"].strftime("%I:%M %p") if new_note["created_at"] else ""
         return new_note
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/cases/{case_id}/generate_narrative")
+def generate_narrative(case_id: str):
+    if not narrative_generator:
+        raise HTTPException(status_code=503, detail="AI Narrative Generator is not configured or disabled.")
+    
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Fetch case
+        cur.execute("SELECT * FROM cases WHERE id = %s", (case_id,))
+        case = cur.fetchone()
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
+        
+        # Fetch related alert and its transactions if applicable
+        related_alert_id = case.get("related_alert_id")
+        alert = None
+        if related_alert_id:
+            cur.execute("SELECT * FROM alerts WHERE id = %s", (related_alert_id,))
+            alert = cur.fetchone()
+            
+        # Get transactions for context. We'll grab the last 5 transactions for the involved account
+        acct_id = alert["account_id"] if alert else "SBI00987654321"
+        cur.execute("SELECT * FROM transactions WHERE sender_account = %s OR receiver_account = %s ORDER BY transaction_time DESC LIMIT 5", (acct_id, acct_id))
+        txns = [dict(r) for r in cur.fetchall()]
+        for txn in txns:
+            # stringify datetimes for json serialization
+            if txn["transaction_time"]:
+                txn["transaction_time"] = txn["transaction_time"].isoformat()
+            if txn["created_at"]:
+                txn["created_at"] = txn["created_at"].isoformat()
+            if "risk_score" in txn and txn["risk_score"] is not None:
+                txn["risk_score"] = float(txn["risk_score"])
+                
+        cur.close(); conn.close()
+        
+        # Prepare SHAP, Linkage, Typologies
+        shap = {
+            "amount_divergence": 0.65 if alert and float(alert["amount"]) > 5000000 else 0.15,
+            "velocity_variance": 0.45 if "velocity" in (alert["description"].lower() if alert else "") else 0.20,
+            "temporal_anomaly": 0.55 if "night" in (alert["description"].lower() if alert else "") else 0.10,
+        }
+        linkage = {
+            "mule_cluster_affinity": 0.72 if "mule" in (alert["description"].lower() if alert else "") else 0.12,
+            "layering_hop_distance": 0.88 if "layering" in (alert["description"].lower() if alert else "") else 0.05,
+        }
+        typologies = []
+        if alert:
+            if "smurfing" in alert["description"].lower():
+                typologies.append("PMLA Typology 01: High-volume structuring below reporting threshold")
+            elif "layering" in alert["description"].lower():
+                typologies.append("PMLA Typology 04: Rapid asset layering using digital payment rails")
+            elif "dormant" in alert["description"].lower():
+                typologies.append("PMLA Typology 09: Dormant account reactivation for mule operations")
+            else:
+                typologies.append("FATF Recommendation 16: Cross-border wire transfer anomaly")
+        else:
+            typologies.append("RBI Master Direction: Suspicious Transaction Report trigger")
+            
+        # Call OpenRouter Llama model
+        summary = narrative_generator.generate_case_summary(
+            transactions=txns,
+            shap_attributions=shap,
+            linkage_indices=linkage,
+            pmla_typologies=typologies
+        )
+        
+        # Save summary to case as a Note
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("""
+            INSERT INTO case_notes (case_id, author, text)
+            VALUES (%s, %s, %s)
+            RETURNING *
+        """, (case_id, "AI Case Assistant", summary))
+        note = dict(cur.fetchone())
+        
+        # Also update case description
+        cur.execute("UPDATE cases SET description = %s, updated_at = NOW() WHERE id = %s", (summary, case_id))
+        conn.commit()
+        cur.close(); conn.close()
+        
+        note["time"] = note["created_at"].strftime("%I:%M %p") if note["created_at"] else ""
+        return {
+            "narrative": summary,
+            "note": note
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
