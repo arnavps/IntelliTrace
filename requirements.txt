@@ -10,7 +10,7 @@ numpy
 openai
 passlib[bcrypt]
 psycopg2-binary
-pydantic
+pydantic[email]
 python-dotenv
 redis
 scikit-learn
