@@ -8,7 +8,8 @@ neo4j
 networkx
 numpy
 openai
-passlib[bcrypt]
+passlib
+bcrypt==3.2.0
 psycopg2-binary
 pydantic[email]
 python-dotenv
