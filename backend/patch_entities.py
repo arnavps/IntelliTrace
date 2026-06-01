@@ -2,7 +2,7 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 
-load_dotenv("c:/Users/HARNISH N DANGI/OneDrive/Desktop/IntelliTrace/backend/.env")
+load_dotenv()
 
 db_url = os.environ.get("NEON_DATABASE_URL") or os.environ.get("DATABASE_URL")
 if not db_url:
