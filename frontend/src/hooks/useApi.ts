@@ -23,6 +23,7 @@ export function useApi<T>(url: string, dependencies: unknown[] = []) {
   }, [url])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchData, ...dependencies])

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search,
@@ -13,7 +13,6 @@ import { useApi } from '../../hooks/useApi'
 /* ─── Types ─────────────────────────────────────────────────────── */
 
 type Risk      = 'Critical' | 'High' | 'Medium' | 'Low'
-type TxnStatus = 'Flagged' | 'Cleared' | 'Under Review' | 'Processing'
 
 interface Transaction {
   id: string
@@ -126,8 +125,6 @@ export function TransactionsPage() {
   const [page,          setPage]          = useState(1)
 
   /* Build query URL reactively */
-  const [queryUrl, setQueryUrl] = useState(() => buildUrl(1, '', 'All', 'All', ''))
-
   function buildUrl(
     pg: number,
     srch: string,
@@ -145,11 +142,7 @@ export function TransactionsPage() {
     return `/api/transactions?${params.toString()}`
   }
 
-  /* Sync state → queryUrl */
-  useEffect(() => {
-    setQueryUrl(buildUrl(page, search, channelFilter, riskFilter, dateRange))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, channelFilter, riskFilter, dateRange])
+  const queryUrl = buildUrl(page, search, channelFilter, riskFilter, dateRange)
 
   const { data, loading, refetch } = useApi<TransactionsResponse>(queryUrl, [queryUrl])
 

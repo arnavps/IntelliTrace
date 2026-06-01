@@ -25,6 +25,7 @@ export const SankeyVisualizer: React.FC<{ data: FlowData }> = ({ data }) => {
 
     const color = d3.scaleOrdinal(d3.schemeCategory10);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sankeyGenerator = sankey<any, any>()
       .nodeWidth(15)
       .nodePadding(10)

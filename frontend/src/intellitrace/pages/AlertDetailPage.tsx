@@ -118,6 +118,7 @@ const buildGraphElements = (alertId: string): ElementDefinition[] => [
   { data: { id: 'e5', source: 'acc_main', target: 'acc_k2', label: '₹90K', type: 'split' } },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const CY_STYLESHEET: any = [
   {
     selector: 'node',
@@ -501,7 +502,8 @@ export function AlertDetailPage() {
                 <CytoscapeComponent
                   elements={graphElements}
                   stylesheet={CY_STYLESHEET}
-                  layout={{ name: 'cose', padding: 30, animate: false } as any}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  layout={{ name: 'cose', animate: true, animationDuration: 600, fit: true, padding: 30 } as any}
                   style={{ width: '100%', height: '100%' }}
                   cy={(cy) => {
                     cy.on('tap', 'node', (evt) => {

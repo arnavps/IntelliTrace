@@ -99,6 +99,7 @@ export const AdminPage: React.FC = () => {
   // Populate sliders once API data arrives
   useEffect(() => {
     if (thresholdsData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFraudThreshold(thresholdsData.fraud_threshold);
       setEscalationScore(thresholdsData.escalation_score);
       setStrThreshold(thresholdsData.str_threshold);

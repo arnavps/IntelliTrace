@@ -168,6 +168,7 @@ function getNodeSize(amount: number): number {
 
 // ─── Cytoscape Stylesheet ─────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const cytoscapeStylesheet: any = [
   {
     selector: 'node',
@@ -205,6 +206,7 @@ const cytoscapeStylesheet: any = [
   {
     selector: 'edge',
     style: {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       'width': (ele: any) => Math.max(1.5, (ele.data('amount') || 5) / 20),
       'line-color': '#F5A623',
       'line-opacity': 0.55,
@@ -331,9 +333,15 @@ export function GraphExplorerPage() {
   };
 
   // Zoom controls
-  const handleZoomIn  = () => cyRef.current?.zoom({ level: (cyRef.current.zoom() * 1.25), renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 } });
-  const handleZoomOut = () => cyRef.current?.zoom({ level: (cyRef.current.zoom() * 0.8),  renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 } });
-  const handleFit     = () => cyRef.current?.fit(undefined, 40);
+  const handleZoomIn  = useCallback(() => {
+    if (cyRef.current) cyRef.current.zoom({ level: (cyRef.current.zoom() * 1.25), renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 } });
+  }, []);
+  const handleZoomOut = useCallback(() => {
+    if (cyRef.current) cyRef.current.zoom({ level: (cyRef.current.zoom() * 0.8),  renderedPosition: { x: cyRef.current.width() / 2, y: cyRef.current.height() / 2 } });
+  }, []);
+  const handleFit     = useCallback(() => {
+    if (cyRef.current) cyRef.current.fit(undefined, 40);
+  }, []);
 
   // Actions
   const handleExpand = () => {
@@ -619,6 +627,7 @@ export function GraphExplorerPage() {
           position: 'absolute', right: '16px', top: '56px', zIndex: 10,
           display: 'flex', flexDirection: 'column', gap: '6px',
         }}>
+          {/* eslint-disable-next-line react-hooks/refs */}
           {[
             { icon: <ZoomIn size={14} />, action: handleZoomIn, title: 'Zoom In' },
             { icon: <ZoomOut size={14} />, action: handleZoomOut, title: 'Zoom Out' },

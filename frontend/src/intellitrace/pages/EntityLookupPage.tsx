@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { 
   Search, Users, Filter, ArrowRight, Activity, 
   ShieldAlert, ShieldCheck, ChevronLeft, ChevronRight 

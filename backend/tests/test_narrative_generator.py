@@ -19,7 +19,8 @@ def sample_inputs():
 
 def test_narrative_generator_success(sample_inputs):
     """Verify that a properly formatted narrative passes schema validation."""
-    with patch("intellitrace.narrative_generator.anthropic.Anthropic") as MockClient:
+    with patch("intellitrace.narrative_generator.anthropic") as mock_anthropic:
+        MockClient = mock_anthropic.Anthropic
         # Configure the mock response
         mock_instance = MockClient.return_value
         mock_message = MagicMock()
@@ -46,7 +47,8 @@ def test_narrative_generator_success(sample_inputs):
 
 def test_narrative_generator_schema_failure(sample_inputs):
     """Verify that a missing sub-heading triggers a ValueError validation exception."""
-    with patch("intellitrace.narrative_generator.anthropic.Anthropic") as MockClient:
+    with patch("intellitrace.narrative_generator.anthropic") as mock_anthropic:
+        MockClient = mock_anthropic.Anthropic
         mock_instance = MockClient.return_value
         mock_message = MagicMock()
         mock_content = MagicMock()
@@ -70,7 +72,8 @@ def test_narrative_generator_schema_failure(sample_inputs):
 
 def test_narrative_generator_api_dropout(sample_inputs):
     """Verify that an API network fault correctly raises a RuntimeError."""
-    with patch("intellitrace.narrative_generator.anthropic.Anthropic") as MockClient:
+    with patch("intellitrace.narrative_generator.anthropic") as mock_anthropic:
+        MockClient = mock_anthropic.Anthropic
         mock_instance = MockClient.return_value
         # Use a generic Exception since anthropic.APIError is mocked out here
         mock_instance.messages.create.side_effect = Exception("Connection Reset")

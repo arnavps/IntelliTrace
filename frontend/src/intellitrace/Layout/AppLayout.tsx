@@ -65,6 +65,7 @@ export function AppLayout() {
     if (userStr) {
       try {
         const user = JSON.parse(userStr)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (user.name) setUserName(user.name)
         if (user.role) setUserRole(user.role)
       } catch (e) {

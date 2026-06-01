@@ -74,6 +74,7 @@ export const NetworkCanvas: React.FC<NetworkCanvasProps> = ({ elements, bindCyIn
         'background-color': '#ef4444', // var(--accent-red)
         'width': 32,
         'height': 32,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         'box-shadow': '0 0 15px rgba(239, 68, 68, 0.5)' as any // Wait, box-shadow is not native cy style, dropping it. We'll use border-opacity.
       }
     },

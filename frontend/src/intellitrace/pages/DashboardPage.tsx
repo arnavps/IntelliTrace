@@ -171,6 +171,7 @@ export function DashboardPage() {
   useEffect(() => {
     const user = getUser()
     if (user?.name) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUserName(user.name.split(' ')[0])
     }
   }, [])
@@ -361,7 +362,8 @@ export function DashboardPage() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: unknown, name: unknown) => [`${value}%`, name]}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    formatter={(value: any, name: any) => [`${value}%`, name]}
                     contentStyle={{ background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8, fontSize: 12 }}
                     itemStyle={{ color: '#fff' }}
                     labelStyle={{ color: '#999' }}

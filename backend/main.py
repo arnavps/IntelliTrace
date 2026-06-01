@@ -750,8 +750,12 @@ def get_entities(search: str = "", type_filter: str = "All", page: int = 1, limi
 
 # ─── Ingestion Binding (E2E Integration Layer) ────────────────────────────────
 
-# Initialize Security Boundary with a deterministic pepper key for Sandbox/Hackathon
-master_pepper_key = os.environ.get("MASTER_PEPPER_KEY", "INTELLITRACE_HACKATHON_SECURE_KEY_32B").encode("utf-8")
+# Initialize Security Boundary with a secure random key if not in env
+master_pepper_key = os.environ.get("MASTER_PEPPER_KEY")
+if not master_pepper_key:
+    master_pepper_key = os.urandom(32)
+else:
+    master_pepper_key = master_pepper_key.encode("utf-8")
 pii_boundary = PIISecurityBoundary(secret_key=master_pepper_key)
 
 # Initialize Core Algorithms (Module 2, 3, 4, 5)

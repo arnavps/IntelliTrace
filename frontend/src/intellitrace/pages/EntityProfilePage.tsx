@@ -129,6 +129,7 @@ const GRAPH_ELEMENTS = [
   { data: { id: 'e8', source: 'anil', target: 'zenith', label: '₹80K' } },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const CYTOSCAPE_STYLESHEET: any = [
   {
     selector: 'node',
@@ -579,6 +580,7 @@ export default function EntityProfilePage() {
               <CytoscapeComponent
                 elements={GRAPH_ELEMENTS}
                 stylesheet={CYTOSCAPE_STYLESHEET}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 layout={{ name: 'cose', animate: true, animationDuration: 800, nodeRepulsion: () => 8000, idealEdgeLength: () => 120, fit: true, padding: 40 } as any}
                 style={{ width: '100%', height: '100%' }}
                 cy={(cy) => {

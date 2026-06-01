@@ -24,8 +24,8 @@ export function LoginPage({ onNavigate }: { onNavigate: (p: string) => void }) {
         localStorage.setItem('user', JSON.stringify(data.user))
       }
       navigate('/dashboard')
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Unknown error')
     }
   }
 
@@ -131,8 +131,8 @@ export function SignupPage({ onNavigate }: { onNavigate: (p: string) => void }) 
           localStorage.setItem('user', JSON.stringify(data.user))
         }
         navigate('/dashboard')
-      } catch (err: any) {
-        setError(err.message)
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Unknown error')
       }
     }
   }

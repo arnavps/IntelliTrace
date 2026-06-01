@@ -8,6 +8,16 @@ import numpy as np
 import xgboost as xgb
 from typing import Generator, Dict, Any, List
 
+try:
+    import docker
+    client = docker.from_env()
+    client.ping()
+    DOCKER_AVAILABLE = True
+except Exception:
+    DOCKER_AVAILABLE = False
+
+pytestmark = pytest.mark.skipif(not DOCKER_AVAILABLE, reason="Docker is required for these E2E tests")
+
 # Testcontainers for isolated distributed components
 from testcontainers.kafka import KafkaContainer
 from testcontainers.neo4j import Neo4jContainer

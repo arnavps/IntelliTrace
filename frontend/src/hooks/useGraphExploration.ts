@@ -14,13 +14,13 @@ export interface GraphFilterState {
 export const useGraphExploration = () => {
   const [mode, setMode] = useState<GraphMode>('explore');
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
-  const [filterState, setFilterState] = useState<GraphFilterState>({
+  const [filterState, setFilterState] = useState<GraphFilterState>(() => ({
     minAmount: 0,
     maxAmount: 10000000,
     startTime: Date.now() - 30 * 24 * 60 * 60 * 1000, // Last 30 days
     endTime: Date.now(),
     riskThreshold: 0.5,
-  });
+  }));
 
   // Reference to the active Cytoscape instance
   const cyRef = useRef<Core | null>(null);
