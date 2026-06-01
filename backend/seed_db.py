@@ -158,7 +158,7 @@ USERS = [
 for name, email, pwd, plan, role in USERS:
     cur.execute("SELECT id FROM users WHERE email=%s", (email,))
     if not cur.fetchone():
-        hashed = pwd_context.hash(pwd)
+        hashed = pwd_context.hash(pwd[:72])
         cur.execute(
             "INSERT INTO users (name, email, password, plan, role, status, mfa_enabled, last_login) VALUES (%s,%s,%s,%s,%s,'Active',true,NOW()-INTERVAL '5 minutes')",
             (name, email, hashed, plan, role)
