@@ -280,10 +280,12 @@ except Exception as e:
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain, hashed):
-    return pwd_context.verify(plain[:72], hashed)
+    safe_plain = plain.encode('utf-8')[:72].decode('utf-8', 'ignore')
+    return pwd_context.verify(safe_plain, hashed)
 
 def hash_password(password):
-    return pwd_context.hash(password[:72])
+    safe_password = password.encode('utf-8')[:72].decode('utf-8', 'ignore')
+    return pwd_context.hash(safe_password)
 
 # ─── Pydantic Models ─────────────────────────────────────────────────────────
 
