@@ -10,7 +10,8 @@ export function LoginPage({ onNavigate }: { onNavigate: (p: string) => void }) {
     e.preventDefault()
     setError('')
     try {
-      const res = await fetch('http://localhost:8000/api/auth/signin', {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+      const res = await fetch(`${baseUrl}/api/auth/signin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
@@ -117,7 +118,8 @@ export function SignupPage({ onNavigate }: { onNavigate: (p: string) => void }) 
       setStep(2)
     } else {
       try {
-        const res = await fetch('http://localhost:8000/api/auth/signup', {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+        const res = await fetch(`${baseUrl}/api/auth/signup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(form)
