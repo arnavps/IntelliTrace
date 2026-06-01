@@ -1,0 +1,22 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+fastapi
+httpx
+imbalanced-learn
+kafka-python
+neo4j
+networkx
+numpy
+openai
+passlib[bcrypt]
+psycopg2-binary
+pydantic
+python-dotenv
+redis
+scikit-learn
+scipy
+shap
+torch
+torch_geometric
+uvicorn
+xgboost
