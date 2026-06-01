@@ -4,3 +4,16 @@ docs/
 .env
 .env.local
 .env.*
+
+# Python Cache & Bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Temporary Scratch Files
+**/scratch/
+scratch/
+*.log
+

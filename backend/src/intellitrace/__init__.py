@@ -5,6 +5,8 @@ A production-grade, highly optimized adapters framework to parse and normalize
 incoming logs from 9 distinct banking channels into a unified schema using Pydantic v2.
 """
 
+__version__ = "1.0.0"
+
 from intellitrace.exceptions import (
     IUTSException,
     IUTSValidationError,

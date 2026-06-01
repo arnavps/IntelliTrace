@@ -4,6 +4,24 @@ Uses SHAP (SHapley Additive exPlanations) to render XGBoost predictions fully in
 satisfying RBI FREE-AI framework and India's DPDP Act mandates.
 """
 
+import sys
+import types
+
+# ── Python 3.13 / tf_keras compatibility guard ─────────────────────────────
+# SHAP's TreeExplainer calls shap.utils.transformers.is_transformers_lm() which
+# lazy-imports the `transformers` package. That package in turn imports TensorFlow
+# → tf_keras, which uses inspect.stack() in a way that is broken on Python 3.13
+# (raises KeyboardInterrupt inside tf_keras/src/losses.py).
+# We inject a minimal stub so SHAP's isinstance check returns False cleanly.
+if "transformers" not in sys.modules:
+    _transformers_stub = types.ModuleType("transformers")
+    # Attributes checked by shap.utils.transformers.is_transformers_lm()
+    _transformers_stub.PreTrainedModel = None          # type: ignore[attr-defined]
+    _transformers_stub.TFPreTrainedModel = None        # type: ignore[attr-defined]
+    _transformers_stub.FlaxPreTrainedModel = None      # type: ignore[attr-defined]
+    sys.modules["transformers"] = _transformers_stub
+# ── End guard ──────────────────────────────────────────────────────────────
+
 import numpy as np
 import shap
 import xgboost as xgb
